@@ -1,0 +1,68 @@
+import type { GNode } from './schema';
+
+// Metrics are concept nodes with kind 'metric'. They live under each owning subdomain.
+
+const M = (
+  id: string,
+  name: string,
+  domainId: string,
+  parentId: string,
+  shortExplanation: string,
+  whyItMatters: string,
+  badValuesIndicate: string,
+  howToImprove: string,
+  tags: string[] = [],
+): GNode => ({
+  id,
+  name,
+  kind: 'metric',
+  domainId,
+  parentId,
+  level: 2,
+  difficulty: 'intermediate',
+  layer: 'operational',
+  tags: ['metric', ...tags],
+  shortExplanation,
+  whyItMatters,
+  whereItAppears: [badValuesIndicate],
+  useCases: [howToImprove],
+  interviewRelevance: 4,
+  productionRelevance: 5,
+});
+
+export const metrics: GNode[] = [
+  M('metric-latency', 'Latency (p50/p95/p99)', 'observability', 'observ-metrics', 'Time from request received to response sent, in percentile buckets.', 'Averages lie; tails are what users feel and what SLOs are written against.', 'Tail spikes signal contention, GC, slow downstream, or hot keys.', 'Profile the slow path; add caching, async work, or queueing for tail-sensitive operations.', ['perf']),
+  M('metric-throughput', 'Throughput (RPS/QPS)', 'observability', 'observ-metrics', 'Requests successfully processed per unit time.', 'Drops indicate saturation, downstream failure, or backpressure.', 'Sudden cliffs hint at capacity walls; gradual drift suggests inefficiency creep.', 'Horizontal scale, async batching, or removing per-request overhead.', ['perf']),
+  M('metric-error-rate', 'Error rate', 'observability', 'observ-metrics', 'Fraction of requests returning errors (4xx, 5xx, or domain-specific).', 'Direct SLI input; alerting baseline.', '5xx spikes mean broken code or dependency outage; 4xx spikes can mean bad clients or rate-limit storms.', 'Categorize by error code, isolate downstream, deploy guarded by error-budget burn.', ['reliability']),
+  M('metric-availability', 'Availability', 'observability', 'observ-metrics', 'Fraction of time the service is usable (good time / total time).', 'Core SLO; cascades into customer trust and contracts.', 'Below SLO threshold burns error budget; sustained dips trigger feature freezes.', 'Eliminate single points of failure, add redundancy, improve incident response.', ['reliability']),
+  M('metric-durability', 'Durability', 'databases', 'db-replication', 'Probability that stored data survives over time (e.g., 11 nines).', 'Defines acceptable data loss; drives replication strategy.', 'Replication lag + correlated failures are durability risks.', 'Increase replicas, cross-region, immutable backups, periodic restore tests.', ['storage']),
+  M('metric-replication-lag', 'Replication lag', 'databases', 'db-replication', 'Delay between writes on primary and visibility on replicas.', 'Drives read-after-write semantics and DR readiness.', 'High lag indicates write bursts, network issues, or replica slowness.', 'Tune replica hardware, batch commit, use async with bounded staleness.', ['db']),
+  M('metric-queue-depth', 'Queue depth', 'messaging', 'msg-monitoring', 'Number of in-flight messages waiting for processing.', 'Leading indicator of consumer-side backpressure.', 'Growing monotonically: consumers can\'t keep up.', 'Scale consumers, partition more, optimize handler, shed load.', ['messaging']),
+  M('metric-consumer-lag', 'Consumer lag', 'messaging', 'msg-monitoring', 'Difference between latest produced and last committed offset.', 'Tells you how far behind real-time your consumers are.', 'Sustained lag breaks event-driven freshness contracts.', 'Increase parallelism, rebalance partitions, fix slow downstream calls.', ['messaging']),
+  M('metric-cpu', 'CPU utilization', 'observability', 'observ-metrics', 'Fraction of CPU cycles spent doing work vs idle.', 'Saturation signal; correlates with latency tails.', 'Sustained >70-80% means tail latency is at risk.', 'Optimize hot paths, scale out, use async I/O, reduce serialization.', ['perf']),
+  M('metric-memory', 'Memory utilization', 'observability', 'observ-metrics', 'Working-set + heap usage of the process.', 'OOMs are abrupt outages; GC pressure inflates p99.', 'Saw-tooth pattern with rising baseline = leak.', 'Profile allocations, fix leaks, raise limits, tune GC.', ['perf']),
+  M('metric-disk-io', 'Disk I/O', 'observability', 'observ-metrics', 'Read/write throughput, IOPS, and queue length.', 'Often the actual bottleneck in DB-heavy services.', 'High iowait with low CPU = storage-bound.', 'Use NVMe, batch writes, write-ahead log tuning, indexing.', ['perf']),
+  M('metric-net-io', 'Network I/O', 'observability', 'observ-metrics', 'Bytes/sec and packets/sec on each interface.', 'Bandwidth and packet rate both cap throughput.', 'Saturation causes retransmits and elevated tail latency.', 'Compress, batch, move traffic off hot paths, switch instance types.', ['perf']),
+  M('metric-cache-hit', 'Cache hit ratio', 'caching', 'cache-strategy', 'Fraction of requests served from cache.', 'Determines how much load you actually push downstream.', 'Drops indicate working-set growth, eviction misconfig, or invalidation bugs.', 'Increase size, smarter eviction, prewarming, key compression.', ['cache']),
+  M('metric-slo', 'SLO', 'observability', 'observ-reliability', 'Internal target for an SLI, e.g., 99.9% requests under 300ms.', 'Defines what "good enough" means; drives error budgets.', 'Burn rate alerts when budget is consumed faster than allowed.', 'Tighten architecture, prioritize reliability work, reduce risky deploys.', ['reliability']),
+  M('metric-sla', 'SLA', 'observability', 'observ-reliability', 'Externally-promised service level with consequences for missing.', 'Has business implications: refunds, contracts, churn.', 'Frequent breaches indicate over-promising or under-investing.', 'Re-baseline SLAs to reality; harden the riskiest paths.', ['reliability']),
+  M('metric-sli', 'SLI', 'observability', 'observ-reliability', 'A measurable signal that reflects user-perceived service quality.', 'Foundation of the SLO/SLA stack.', 'Bad SLI choice (e.g., averages) hides real problems.', 'Pick user-centric percentiles and ratios, not host-centric counters.', ['reliability']),
+  M('metric-mttr', 'MTTR', 'observability', 'observ-reliability', 'Mean time to recover from an incident.', 'Detection + diagnosis + remediation feedback loop.', 'High MTTR usually means poor observability or playbooks.', 'Better runbooks, automation, blameless postmortems, rollback design.', ['ops']),
+  M('metric-mttd', 'MTTD', 'observability', 'observ-reliability', 'Mean time to detect an incident.', 'You can\'t fix what you didn\'t see.', 'High MTTD means alerts missing or noisy.', 'Tune SLO alerts, golden signals, synthetic probes.', ['ops']),
+  M('metric-accuracy', 'Accuracy', 'ml', 'ml-eval', 'Fraction of predictions that match ground truth.', 'Most intuitive metric; misleads under class imbalance.', 'High accuracy with poor recall on minority class = useless model.', 'Use stratified metrics, balance training data, reweight loss.', ['ml']),
+  M('metric-precision', 'Precision', 'ml', 'ml-eval', 'TP / (TP + FP) — of predicted positives, how many are correct.', 'Critical when false positives are costly (fraud alerts, ads).', 'Low precision means alerts/labels people stop trusting.', 'Tune threshold, calibrate, add features that disambiguate.', ['ml']),
+  M('metric-recall', 'Recall', 'ml', 'ml-eval', 'TP / (TP + FN) — of true positives, how many you caught.', 'Critical when false negatives are catastrophic (cancer, fraud).', 'Low recall means missed cases — sometimes silently.', 'Lower threshold, gather more positive examples, change model class.', ['ml']),
+  M('metric-f1', 'F1 score', 'ml', 'ml-eval', 'Harmonic mean of precision and recall.', 'Balanced single number when both matter.', 'Hides tradeoff direction — always report P/R separately too.', 'Improve whichever of P or R is lower.', ['ml']),
+  M('metric-rocauc', 'ROC-AUC', 'ml', 'ml-eval', 'Probability the model ranks a random positive above a random negative.', 'Threshold-independent; good for comparing models.', 'Can be high while precision at operating threshold is poor.', 'Report PR-AUC under class imbalance; pick threshold from business cost.', ['ml']),
+  M('metric-drift', 'Drift score', 'mlops', 'mlops-monitoring', 'Statistical distance between current and reference distribution.', 'Early warning that the model\'s world has changed.', 'Drift in input features ⇒ stale model; drift in labels ⇒ concept drift.', 'Retrain, recalibrate, or shadow a new model.', ['mlops']),
+  M('metric-data-quality', 'Data quality score', 'data-eng', 'de-quality', 'Composite of freshness, completeness, validity, uniqueness, accuracy.', 'Bad data quietly poisons every downstream system.', 'Schema violations, null spikes, late-arriving partitions.', 'Contracts, tests (great_expectations/dbt), SLAs on data.', ['data']),
+  M('metric-inference-latency', 'Inference latency', 'mlops', 'mlops-serving', 'Time to compute a model prediction.', 'Defines product feasibility (real-time vs offline).', 'Tails grow with token length, batch size, cache misses.', 'Quantization, batching, paged attention, smaller model, distillation.', ['mlops']),
+  M('metric-tps', 'Tokens per second', 'llmops', 'llm-perf', 'Throughput of an LLM serving system.', 'Drives unit economics of any LLM product.', 'Low TPS = costly per request and slow to user.', 'vLLM/paged attention, speculative decoding, fewer tokens, smaller model.', ['llm']),
+  M('metric-cost-req', 'Cost per request', 'llmops', 'llm-cost', 'Total cost (compute + tokens + retrieval) per served query.', 'Required to model gross margin of any AI feature.', 'Spikes correlate with prompt growth, retries, or expensive fallbacks.', 'Cache, route to smaller model when possible, compress prompts.', ['llm', 'cost']),
+  M('metric-gpu', 'GPU utilization', 'mlops', 'mlops-serving', 'Fraction of GPU compute actually used.', 'Idle GPU is wasted money; saturated GPU is queueing latency.', '<30% means under-batched or bottlenecked elsewhere.', 'Increase batch size, fuse kernels, fix CPU-side preprocessing.', ['gpu']),
+  M('metric-retrieval-precision', 'Retrieval precision@k', 'vector', 'vector-eval', 'Fraction of top-k retrieved documents that are relevant.', 'RAG quality is upper-bounded by retrieval quality.', 'Low precision@k means the model is answering from noise.', 'Better embeddings, hybrid search, reranking, chunking strategy.', ['rag']),
+  M('metric-faithfulness', 'Faithfulness', 'llmops', 'llm-eval', 'Degree to which an answer is grounded in retrieved context.', 'The other half of RAG quality — does the model actually use the docs?', 'Low faithfulness = hallucinations dressed up with citations.', 'Better prompts, smaller context with reranking, fine-tune, citations-required.', ['rag']),
+  M('metric-hallucination', 'Hallucination rate', 'llmops', 'llm-eval', 'Frequency of model outputs not supported by sources.', 'Trust killer; especially dangerous in regulated domains.', 'Rises with longer outputs, ambiguous prompts, weak retrieval.', 'Constrained decoding, retrieval, evaluators, refusal training.', ['llm']),
+];
+
+export const metricNodes = metrics;
