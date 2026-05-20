@@ -366,7 +366,13 @@ export default function NodeMesh({
               if (typeof i !== 'number') return;
               const id = bucket.ids[i];
               if (!visibleIds.has(id)) return;
-              if (e.nativeEvent.shiftKey && onShiftSelect) {
+              // Only treat as compare-pick when SHIFT is held alone (no other
+              // modifiers). Defends against OS / accessibility weirdness that
+              // could otherwise hijack every click.
+              const ne = e.nativeEvent;
+              const shiftOnly =
+                ne.shiftKey && !ne.altKey && !ne.ctrlKey && !ne.metaKey;
+              if (shiftOnly && onShiftSelect) {
                 onShiftSelect(id);
               } else {
                 onSelect(id);

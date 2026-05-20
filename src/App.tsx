@@ -106,21 +106,43 @@ export default function App() {
   // re-clicking the same node still re-expands and re-focuses.
   const handleSelect = useCallback(
     (id: string) => {
+      const state = useGraphStore.getState();
       const node = nodeById.get(id);
       if (node) {
+        // CRITICAL: if focus mode is active and the user clicks a node whose
+        // subtree wouldn't be visible under the current focus, clear focus.
+        // Otherwise the new domain's subdomains stay hidden after expansion
+        // (the focus filter overrides progressive disclosure).
+        const focusedId = state.focusedSubtreeId;
+        if (focusedId && focusedId !== id) {
+          const focusSet = focusSubtreeIds({
+            focusedId,
+            nodes: graph.nodes,
+            edges: graph.edges,
+          });
+          // If the clicked node is in the focus set but its descendants
+          // wouldn't be, clearing focus is the right move so expansion shows.
+          if (focusSet.has(id)) {
+            // It's visible but children won't be — exit focus mode.
+            state.setFocusedSubtree(null);
+          }
+          // (If not in focus set, the click can't have come from a click
+          //  on a visible mesh — guard already in NodeMesh blocks it.)
+        }
+
         if (node.kind === 'domain') {
-          useGraphStore.getState().expandDomain(node.id);
+          state.expandDomain(node.id);
         } else if (node.kind === 'subdomain') {
-          if (node.parentId) useGraphStore.getState().expandDomain(node.parentId);
-          useGraphStore.getState().expandSubdomain(node.id);
+          if (node.parentId) state.expandDomain(node.parentId);
+          state.expandSubdomain(node.id);
         } else if (node.parentId) {
           const parent = nodeById.get(node.parentId);
           if (parent?.kind === 'subdomain') {
-            useGraphStore.getState().expandSubdomain(parent.id);
-            if (parent.parentId) useGraphStore.getState().expandDomain(parent.parentId);
+            state.expandSubdomain(parent.id);
+            if (parent.parentId) state.expandDomain(parent.parentId);
           }
         }
-        useGraphStore.getState().markInteracted();
+        state.markInteracted();
       }
       const pos = layout.get(id)?.position;
       if (pos) setFocus([pos.x, pos.y, pos.z]);
@@ -564,8 +586,11 @@ export default function App() {
         </button>
       )}
 
-      <div className="pointer-events-none absolute bottom-1 left-1/2 z-10 -translate-x-1/2 hidden md:block text-[10px] font-mono text-slate-600">
-        {graph.nodes.length} nodes · {graph.edges.length} edges · {graph.domains.length} domains
+      <div className="pointer-events-none absolute bottom-1 left-1/2 z-10 -translate-x-1/2 hidden md:flex items-center gap-3 text-[10px] font-mono text-slate-600">
+        <span>{graph.nodes.length} nodes · {graph.edges.length} edges · {graph.domains.length} domains</span>
+        <span className="text-cyan-400/70">
+          expanded {expandedDomainIds.size}/{graph.domains.length} domains · {expandedSubdomainIds.size} subs
+        </span>
       </div>
     </div>
   );
