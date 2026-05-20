@@ -47,6 +47,13 @@ interface State {
   // plus 1-hop cross-edge neighbours.
   focusedSubtreeId: string | null;
 
+  // "You are here" — the domain closest to the camera target, refreshed by
+  // NearestDomainTracker.
+  nearestDomainId: string | null;
+
+  // Mobile UI — hamburger toggles the left navigator drawer.
+  mobileMenuOpen: boolean;
+
   select: (id: string | null) => void;
   hover: (id: string | null) => void;
   setMode: (m: Mode) => void;
@@ -73,6 +80,8 @@ interface State {
   setShowHints: (b: boolean) => void;
 
   setFocusedSubtree: (id: string | null) => void;
+  setNearestDomain: (id: string | null) => void;
+  setMobileMenuOpen: (b: boolean) => void;
 
   // Conquest actions.
   conquer: (id: string) => void;
@@ -113,6 +122,8 @@ export const useGraphStore = create<State>((set) => ({
   showOnlyConquered: false,
   showOnlyUnconquered: false,
   focusedSubtreeId: null,
+  nearestDomainId: null,
+  mobileMenuOpen: false,
 
   select: (id) => set({ selectedId: id }),
   hover: (id) => set({ hoveredId: id }),
@@ -191,6 +202,9 @@ export const useGraphStore = create<State>((set) => ({
   setShowHints: (b) => set({ showHints: b }),
 
   setFocusedSubtree: (id) => set({ focusedSubtreeId: id }),
+  setNearestDomain: (id) =>
+    set((s) => (s.nearestDomainId === id ? {} : { nearestDomainId: id })),
+  setMobileMenuOpen: (b) => set({ mobileMenuOpen: b }),
 
   conquer: (id) =>
     set((s) => {

@@ -12,6 +12,8 @@ import ClusterNebulae from './ClusterNebulae';
 import DustField from './DustField';
 import AncestorChain from './AncestorChain';
 import DomainLensFlares from './DomainLensFlares';
+import NearestDomainTracker from './NearestDomainTracker';
+import { domains as ALL_DOMAINS } from '../data/domains';
 
 interface Props {
   nodes: GNode[];
@@ -142,6 +144,8 @@ export default function GalaxyGraph({
       />
 
       <ClusterLabels />
+
+      <NearestDomainTracker domains={ALL_DOMAINS} layout={layout} />
 
       {domainLabels.map(({ node, pos }) =>
         pos ? (

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+const FLASH_DURATION_S = 1.4;
 import * as THREE from 'three';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -21,6 +22,8 @@ const SEGMENTS_PER_LINK = 22;
 export default function AncestorChain({ breadcrumbs, layout }: Props) {
   const { size } = useThree();
   const lineRef = useRef<LineSegments2 | null>(null);
+  const flashStartRef = useRef<number>(0);
+  const lastLeafIdRef = useRef<string | null>(null);
 
   // Build the geometry — one bezier per parent/child link.
   const mesh = useMemo(() => {
@@ -83,12 +86,32 @@ export default function AncestorChain({ breadcrumbs, layout }: Props) {
     mat.resolution.set(size.width, size.height);
   }, [size, mesh]);
 
+  // Trigger a "flash" when the selection (leaf of breadcrumbs) changes — gives
+  // search hits and arrow-key jumps an immediate visual punch before settling
+  // into the steady pulse.
+  useEffect(() => {
+    const leaf = breadcrumbs[breadcrumbs.length - 1]?.id ?? null;
+    if (leaf && leaf !== lastLeafIdRef.current) {
+      flashStartRef.current = performance.now();
+      lastLeafIdRef.current = leaf;
+    }
+  }, [breadcrumbs]);
+
   useFrame(() => {
     if (!lineRef.current) return;
     const mat = lineRef.current.material as LineMaterial;
     const t = performance.now() / 1000;
     // Pulse 0.45 ↔ 1.0 at ~2.2 Hz.
-    mat.opacity = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * 2.2));
+    const pulse = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * 2.2));
+    // Decaying flash on selection change.
+    const dt = (performance.now() - flashStartRef.current) / 1000;
+    const flash =
+      dt < FLASH_DURATION_S
+        ? Math.pow(1 - dt / FLASH_DURATION_S, 1.8) * 1.6
+        : 0;
+    mat.opacity = Math.min(1.0, pulse + flash);
+    // Make the line slightly thicker during the flash.
+    mat.linewidth = 4.0 + flash * 1.8;
   });
 
   if (!mesh) return null;

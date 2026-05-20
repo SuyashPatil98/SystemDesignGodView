@@ -29,14 +29,14 @@ export default function KeyboardHints() {
     return (
       <button
         onClick={() => setShow(true)}
-        className="pointer-events-auto absolute bottom-5 right-5 z-10 flex items-center gap-1.5 rounded-md border border-white/10 bg-ink-900/80 px-2.5 py-1.5 text-[11px] text-slate-300 hover:bg-ink-800"
+        className="pointer-events-auto absolute bottom-5 right-5 z-10 hidden md:flex items-center gap-1.5 rounded-md border border-white/10 bg-ink-900/80 px-2.5 py-1.5 text-[11px] text-slate-300 hover:bg-ink-800"
       >
         <Keyboard size={12} /> Controls
       </button>
     );
   }
   return (
-    <div className="glass pointer-events-auto absolute bottom-5 right-5 z-10 max-w-[460px] rounded-xl px-3.5 py-3">
+    <div className="glass pointer-events-auto absolute bottom-5 right-5 z-10 hidden md:block max-w-[460px] rounded-xl px-3.5 py-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
           Controls

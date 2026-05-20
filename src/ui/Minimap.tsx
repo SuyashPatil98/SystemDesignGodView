@@ -41,7 +41,7 @@ export default function Minimap({ nodes, layout, emphasized, onPick }: Props) {
     return (
       <button
         onClick={() => setShow(true)}
-        className="pointer-events-auto absolute bottom-5 left-5 z-10 flex items-center gap-1.5 rounded-md border border-white/10 bg-ink-900/80 px-2.5 py-1.5 text-[11px] text-slate-300 hover:bg-ink-800"
+        className="pointer-events-auto absolute bottom-5 left-5 z-10 hidden md:flex items-center gap-1.5 rounded-md border border-white/10 bg-ink-900/80 px-2.5 py-1.5 text-[11px] text-slate-300 hover:bg-ink-800"
       >
         <Map size={12} /> Show minimap
       </button>
@@ -49,7 +49,7 @@ export default function Minimap({ nodes, layout, emphasized, onPick }: Props) {
   }
 
   return (
-    <GlassPanel className="pointer-events-auto absolute bottom-5 left-5 z-10 p-2">
+    <GlassPanel className="pointer-events-auto absolute bottom-5 left-5 z-10 p-2 hidden md:block">
       <div className="mb-1 flex items-center justify-between px-1">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
           Galaxy

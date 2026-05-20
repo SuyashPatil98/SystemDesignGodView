@@ -62,6 +62,7 @@ export default function LeftPanel({
   const toggleDomainExpanded = useGraphStore((s) => s.toggleDomainExpanded);
   const expandAll = useGraphStore((s) => s.expandAll);
   const collapseAll = useGraphStore((s) => s.collapseAll);
+  const mobileMenuOpen = useGraphStore((s) => s.mobileMenuOpen);
 
   const filtersActive =
     filters.domainIds.size > 0 ||
@@ -101,7 +102,12 @@ export default function LeftPanel({
   }, [mode, failureNodes, metricNodes, patternNodes, toolNodes]);
 
   return (
-    <GlassPanel className="pointer-events-auto absolute left-5 top-[78px] bottom-5 z-10 flex w-[300px] flex-col">
+    <GlassPanel
+      className={`pointer-events-auto absolute top-[68px] bottom-5 z-10 flex flex-col transition-all duration-200
+        sm:left-5 sm:w-[300px]
+        ${mobileMenuOpen ? 'left-3 right-3 sm:right-auto' : 'hidden sm:flex'}
+      `}
+    >
       <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
         <div className="flex items-center gap-2">
           <Filter size={14} className="text-cyan-300" />

@@ -20,7 +20,9 @@ import { computeLayout } from './three/layout';
 import { breadcrumbs as bcrumbs } from './lib/breadcrumbs';
 import { emphasizedIds } from './lib/modes';
 import { focusSubtreeIds } from './lib/subtree';
-import { Focus, X, MousePointerClick } from 'lucide-react';
+import { Focus, X, MousePointerClick, MapPin } from 'lucide-react';
+import { getClusters, domainColor } from './three/layout';
+import OnboardingTour from './ui/OnboardingTour';
 
 export default function App() {
   const layout = useMemo(
@@ -52,6 +54,7 @@ export default function App() {
   const toggleSubdomainExpanded = useGraphStore((s) => s.toggleSubdomainExpanded);
   const hasInteracted = useGraphStore((s) => s.hasInteracted);
   const markInteracted = useGraphStore((s) => s.markInteracted);
+  const nearestDomainId = useGraphStore((s) => s.nearestDomainId);
 
   const domainIds = useMemo(
     () => new Set(graph.domains.map((d) => d.id)),
@@ -153,6 +156,18 @@ export default function App() {
         : null,
     [focusedSubtreeId],
   );
+
+  // Ordered children per parent — used by arrow-key navigation.
+  const childrenByParent = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const n of graph.nodes) {
+      if (!n.parentId) continue;
+      const arr = m.get(n.parentId) ?? [];
+      arr.push(n.id);
+      m.set(n.parentId, arr);
+    }
+    return m;
+  }, []);
 
   // Build a parent → child kind map once: which subdomain's domain is expanded,
   // and which subdomain is expanded itself.
@@ -328,11 +343,58 @@ export default function App() {
         case '6': setMode('metric'); break;
         case '7': setMode('pattern'); break;
         case '8': setMode('tool'); break;
+
+        case 'ArrowUp': {
+          e.preventDefault();
+          if (!selectedId) {
+            handleSelect(graph.domains[0].id);
+            break;
+          }
+          const node = nodeById.get(selectedId);
+          if (node?.parentId) handleSelect(node.parentId);
+          break;
+        }
+        case 'ArrowDown': {
+          e.preventDefault();
+          if (!selectedId) {
+            handleSelect(graph.domains[0].id);
+            break;
+          }
+          const kids = childrenByParent.get(selectedId);
+          if (kids && kids.length) handleSelect(kids[0]);
+          break;
+        }
+        case 'ArrowLeft':
+        case 'ArrowRight': {
+          e.preventDefault();
+          const dir = e.key === 'ArrowRight' ? 1 : -1;
+          if (!selectedId) {
+            handleSelect(graph.domains[0].id);
+            break;
+          }
+          const node = nodeById.get(selectedId);
+          if (!node) break;
+          if (node.kind === 'domain') {
+            const idx = graph.domains.findIndex((d) => d.id === node.id);
+            if (idx < 0) break;
+            const len = graph.domains.length;
+            const next = graph.domains[(idx + dir + len) % len].id;
+            handleSelect(next);
+          } else if (node.parentId) {
+            const sibs = childrenByParent.get(node.parentId);
+            if (!sibs || sibs.length === 0) break;
+            const idx = sibs.indexOf(node.id);
+            if (idx < 0) break;
+            const len = sibs.length;
+            handleSelect(sibs[(idx + dir + len) % len]);
+          }
+          break;
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedId, layout, setFocus, setMode, select, setShowMinimap, showMinimap, focusedSubtreeId, setFocusedSubtree]);
+  }, [selectedId, layout, setFocus, setMode, select, setShowMinimap, showMinimap, focusedSubtreeId, setFocusedSubtree, handleSelect, childrenByParent]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -390,7 +452,7 @@ export default function App() {
 
       <KeyboardHints />
 
-      {!hasInteracted && (
+      {!hasInteracted && !focusedNode && (
         <div className="pointer-events-none absolute left-1/2 top-[78px] z-20 -translate-x-1/2">
           <div className="flex items-center gap-2 rounded-full border border-cyan-300/40 bg-ink-900/85 px-3.5 py-2 text-[12px] text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.35)] backdrop-blur animate-slow-pulse">
             <MousePointerClick size={13} className="text-cyan-300" />
@@ -398,6 +460,35 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* "You are here" — only when user has started exploring and isn't in
+          focus mode (focus chip already occupies that slot). */}
+      {hasInteracted && !focusedNode && nearestDomainId && (() => {
+        const domain = domainById.get(nearestDomainId);
+        if (!domain) return null;
+        const cluster = getClusters().find((c) =>
+          c.domainIds.includes(nearestDomainId),
+        );
+        const color = domainColor(nearestDomainId);
+        return (
+          <div className="pointer-events-none absolute left-1/2 top-[80px] z-10 -translate-x-1/2 select-none">
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-ink-900/55 px-3 py-1.5 text-[10px] uppercase tracking-[0.22em] backdrop-blur">
+              <MapPin size={11} style={{ color }} />
+              {cluster && (
+                <>
+                  <span className="text-slate-400">{cluster.name}</span>
+                  <span className="text-slate-600">/</span>
+                </>
+              )}
+              <span className="text-white" style={{ textShadow: `0 0 10px ${color}66` }}>
+                {domain.name}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
+      <OnboardingTour />
 
       {focusedNode && (
         <button
@@ -412,7 +503,7 @@ export default function App() {
         </button>
       )}
 
-      <div className="pointer-events-none absolute bottom-1 left-1/2 z-10 -translate-x-1/2 text-[10px] font-mono text-slate-600">
+      <div className="pointer-events-none absolute bottom-1 left-1/2 z-10 -translate-x-1/2 hidden md:block text-[10px] font-mono text-slate-600">
         {graph.nodes.length} nodes · {graph.edges.length} edges · {graph.domains.length} domains
       </div>
     </div>

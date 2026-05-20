@@ -48,11 +48,13 @@ export default function RightPanel({
       {node && (
         <motion.div
           key={node.id}
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 30 }}
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 30 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="pointer-events-auto absolute right-5 top-[78px] bottom-5 z-10 w-[400px]"
+          className="pointer-events-auto absolute z-10
+            left-3 right-3 bottom-3 max-h-[70vh]
+            sm:left-auto sm:right-5 sm:top-[78px] sm:bottom-5 sm:max-h-none sm:w-[400px]"
         >
           <GlassPanel className="flex h-full flex-col">
             {/* Header */}
