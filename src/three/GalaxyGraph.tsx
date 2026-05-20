@@ -94,7 +94,8 @@ export default function GalaxyGraph({
       />
 
       <NodeMesh
-        nodes={visibleNodes}
+        nodes={nodes}
+        visibleIds={visibleIds}
         layout={layout}
         selectedId={selectedId}
         hoveredId={hoveredId}

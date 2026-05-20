@@ -5,7 +5,8 @@ import type { GNode, NodeKind } from '../data/schema';
 import type { Positioned } from './layout';
 
 interface Props {
-  nodes: GNode[];
+  nodes: GNode[];            // ALL nodes in the dataset — capacity is fixed.
+  visibleIds: Set<string>;   // The subset currently visible.
   layout: Map<string, Positioned>;
   selectedId: string | null;
   hoveredId: string | null;
@@ -16,28 +17,32 @@ interface Props {
 }
 
 // Per-kind geometry — gives the eye an immediate read on *what kind* of node
-// it's looking at, and adds visual variety. Domains use PBR + env reflections
-// so they look like polished gems; everything else stays emissive for bloom.
+// it is, and adds variety. Domains use PBR + env reflections so they look
+// like polished gems. Other kinds stay emissive for bloom.
+//
+// Stability matters: we allocate every InstancedMesh once at the full
+// per-kind capacity. Visibility is implemented as scale=0 in the loop so
+// args never change and R3F never rebuilds the mesh — which is what was
+// dropping clicks under the previous implementation.
 
 const GOLD = new THREE.Color('#facc15');
 const WHITE = new THREE.Color('#ffffff');
+const HIDDEN_POS = new THREE.Vector3(0, -100000, 0);
 
-// Build geometries once.
+// Build geometries once at module load.
 const geomFor: Record<NodeKind, THREE.BufferGeometry> = {
-  domain: new THREE.IcosahedronGeometry(1, 0),       // crystal / gem
-  subdomain: new THREE.OctahedronGeometry(1, 0),     // simpler crystal
-  concept: new THREE.SphereGeometry(1, 16, 16),      // smooth sphere
-  pattern: new THREE.TorusGeometry(0.7, 0.28, 10, 20), // ring (architecture pattern)
-  tool: new THREE.BoxGeometry(1.25, 1.25, 1.25),     // cube
-  metric: new THREE.TetrahedronGeometry(1.15, 0),    // pyramid
-  failureMode: new THREE.IcosahedronGeometry(1.05, 1), // jagged sphere
+  domain: new THREE.IcosahedronGeometry(1, 0),
+  subdomain: new THREE.OctahedronGeometry(1, 0),
+  concept: new THREE.SphereGeometry(1, 16, 16),
+  pattern: new THREE.TorusGeometry(0.7, 0.28, 10, 20),
+  tool: new THREE.BoxGeometry(1.25, 1.25, 1.25),
+  metric: new THREE.TetrahedronGeometry(1.15, 0),
+  failureMode: new THREE.IcosahedronGeometry(1.05, 1),
 };
 
-// Halo + crown geometries — shared.
 const geomHalo = new THREE.SphereGeometry(1, 12, 12);
 const geomCrown = new THREE.TorusGeometry(1.2, 0.12, 10, 32);
 
-// Kind groups we render — drives our per-kind InstancedMesh layout.
 const KINDS: NodeKind[] = [
   'domain',
   'subdomain',
@@ -48,10 +53,8 @@ const KINDS: NodeKind[] = [
   'failureMode',
 ];
 
-// Per-kind material factory.
 function makeMaterialFor(kind: NodeKind): THREE.Material {
   if (kind === 'domain') {
-    // PBR — picks up env reflections from the procedural cubemap.
     return new THREE.MeshPhysicalMaterial({
       metalness: 0.35,
       roughness: 0.22,
@@ -60,7 +63,6 @@ function makeMaterialFor(kind: NodeKind): THREE.Material {
       envMapIntensity: 1.55,
       emissive: new THREE.Color('#000000'),
       emissiveIntensity: 0.4,
-      transparent: false,
       toneMapped: true,
     });
   }
@@ -74,11 +76,7 @@ function makeMaterialFor(kind: NodeKind): THREE.Material {
       toneMapped: true,
     });
   }
-  // Concept / pattern / tool / metric / failureMode — fully emissive so bloom
-  // catches them. No env map.
-  return new THREE.MeshBasicMaterial({
-    toneMapped: false,
-  });
+  return new THREE.MeshBasicMaterial({ toneMapped: false });
 }
 
 interface KindBucket {
@@ -89,6 +87,7 @@ interface KindBucket {
 
 export default function NodeMesh({
   nodes,
+  visibleIds,
   layout,
   selectedId,
   hoveredId,
@@ -97,18 +96,30 @@ export default function NodeMesh({
   onHover,
   onSelect,
 }: Props) {
-  const meshRefs = useRef<Record<NodeKind, THREE.InstancedMesh | null>>({
-    domain: null,
-    subdomain: null,
-    concept: null,
-    pattern: null,
-    tool: null,
-    metric: null,
-    failureMode: null,
-  });
+  // Refs to each kind's InstancedMesh. Stable across re-renders.
+  const domainRef = useRef<THREE.InstancedMesh>(null);
+  const subdomainRef = useRef<THREE.InstancedMesh>(null);
+  const conceptRef = useRef<THREE.InstancedMesh>(null);
+  const patternRef = useRef<THREE.InstancedMesh>(null);
+  const toolRef = useRef<THREE.InstancedMesh>(null);
+  const metricRef = useRef<THREE.InstancedMesh>(null);
+  const failureModeRef = useRef<THREE.InstancedMesh>(null);
+  const refsByKind: Record<NodeKind, React.RefObject<THREE.InstancedMesh>> = useMemo(
+    () => ({
+      domain: domainRef,
+      subdomain: subdomainRef,
+      concept: conceptRef,
+      pattern: patternRef,
+      tool: toolRef,
+      metric: metricRef,
+      failureMode: failureModeRef,
+    }),
+    [],
+  );
   const haloRef = useRef<THREE.InstancedMesh>(null);
   const crownRef = useRef<THREE.InstancedMesh>(null);
 
+  // Buckets built ONCE from the full dataset. Capacity is fixed at mount.
   const buckets: KindBucket[] = useMemo(() => {
     const out: KindBucket[] = KINDS.map((kind) => ({
       kind,
@@ -125,14 +136,15 @@ export default function NodeMesh({
     return out;
   }, [nodes]);
 
-  const allIdsInHaloOrder = useMemo(() => nodes.map((n) => n.id), [nodes]);
+  // Halo + crown are indexed by all-nodes-in-order so the index space is stable.
+  const allIdsInOrder = useMemo(() => nodes.map((n) => n.id), [nodes]);
 
+  // Pre-compute base size/color per node.
   const sizeById = useMemo(() => {
     const m = new Map<string, number>();
     nodes.forEach((n) => m.set(n.id, layout.get(n.id)?.size ?? 0.5));
     return m;
   }, [nodes, layout]);
-
   const colorById = useMemo(() => {
     const m = new Map<string, THREE.Color>();
     nodes.forEach((n) =>
@@ -143,6 +155,13 @@ export default function NodeMesh({
     );
     return m;
   }, [nodes, layout]);
+
+  // Materials memoized once (per kind). NEVER recreated.
+  const materials = useMemo(() => {
+    const m: Record<NodeKind, THREE.Material> = {} as any;
+    for (const k of KINDS) m[k] = makeMaterialFor(k);
+    return m;
+  }, []);
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tmpColor = useMemo(() => new THREE.Color(), []);
@@ -156,15 +175,26 @@ export default function NodeMesh({
     const crown = crownRef.current;
     if (!halo || !crown) return;
 
-    // Per-kind matrices/colors.
+    // ─── Per-kind nodes ───
     for (const bucket of buckets) {
-      const mesh = meshRefs.current[bucket.kind];
+      const mesh = refsByKind[bucket.kind].current;
       if (!mesh) continue;
 
       for (let i = 0; i < bucket.nodes.length; i++) {
         const n = bucket.nodes[i];
+        const visible = visibleIds.has(n.id);
         const pos = layout.get(n.id);
-        if (!pos) continue;
+        if (!visible || !pos) {
+          // Hide: zero scale + move far below so raycast can't hit it.
+          dummy.position.copy(HIDDEN_POS);
+          dummy.scale.setScalar(0.0001);
+          dummy.rotation.set(0, 0, 0);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+          mesh.setColorAt(i, tmpColor.set(0, 0, 0));
+          continue;
+        }
+
         const isSel = n.id === selectedId;
         const isHover = n.id === hoveredId;
         const isConq = conquered.has(n.id);
@@ -174,7 +204,6 @@ export default function NodeMesh({
         if (isHover) scale *= 1.4;
         if (isSel) scale *= 1.6;
 
-        // Continuous gentle spin for non-spherical shapes.
         const spinPhase = i * 0.31;
         const spinRate =
           bucket.kind === 'concept'
@@ -182,7 +211,6 @@ export default function NodeMesh({
             : bucket.kind === 'domain'
             ? 0.12
             : 0.28;
-
         const breathe = isSel
           ? 1 + Math.sin(t.current * 3.0) * 0.07
           : isHover
@@ -199,17 +227,11 @@ export default function NodeMesh({
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
 
-        const baseColor = (colorById.get(n.id) ?? WHITE).clone();
-        // Domains use PBR — we set emissive via instanceColor (the material's
-        // .color is multiplied into both diffuse and emissive when emissiveIntensity > 0).
-        const color = baseColor.clone();
+        const color = (colorById.get(n.id) ?? WHITE).clone();
         if (dim) color.multiplyScalar(0.22);
         if (isConq) color.lerp(GOLD, 0.18);
         if (isSel) color.lerp(WHITE, 0.32);
         else if (isHover) color.lerp(WHITE, 0.2);
-
-        // Boost the emissive contribution of PBR meshes by pre-multiplying the
-        // instance colour — they read as bright but still take env reflections.
         if (bucket.kind === 'domain' || bucket.kind === 'subdomain') {
           color.multiplyScalar(1.45);
         }
@@ -220,11 +242,24 @@ export default function NodeMesh({
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
 
-    // Halo + crown (one entry per node, indexed by all-nodes-in-order).
-    for (let i = 0; i < allIdsInHaloOrder.length; i++) {
-      const id = allIdsInHaloOrder[i];
+    // ─── Halo + crown (indexed by allIdsInOrder) ───
+    for (let i = 0; i < allIdsInOrder.length; i++) {
+      const id = allIdsInOrder[i];
+      const visible = visibleIds.has(id);
       const pos = layout.get(id);
-      if (!pos) continue;
+
+      if (!visible || !pos) {
+        dummy.position.copy(HIDDEN_POS);
+        dummy.scale.setScalar(0.0001);
+        dummy.rotation.set(0, 0, 0);
+        dummy.updateMatrix();
+        halo.setMatrixAt(i, dummy.matrix);
+        crown.setMatrixAt(i, dummy.matrix);
+        halo.setColorAt(i, tmpColor.set(0, 0, 0));
+        crown.setColorAt(i, tmpColor.set(0, 0, 0));
+        continue;
+      }
+
       const isSel = id === selectedId;
       const isHover = id === hoveredId;
       const isConq = conquered.has(id);
@@ -236,8 +271,6 @@ export default function NodeMesh({
 
       dummy.position.copy(pos.position);
       dummy.rotation.set(0, 0, 0);
-
-      // Halo.
       dummy.scale.setScalar(
         scale * (isSel ? 3.6 : isHover ? 2.8 : isConq ? 2.4 : 2.2),
       );
@@ -249,7 +282,6 @@ export default function NodeMesh({
       else haloColor.multiplyScalar(0.45);
       halo.setColorAt(i, haloColor);
 
-      // Crown (only conquered).
       if (isConq) {
         const crownPulse = 1 + Math.sin(t.current * 2.2 + i * 0.7) * 0.06;
         tmpQuat.setFromUnitVectors(tmpUp, pos.position.clone().normalize());
@@ -276,7 +308,6 @@ export default function NodeMesh({
 
   return (
     <>
-      {/* Halo behind everything */}
       <instancedMesh
         ref={haloRef}
         args={[geomHalo, undefined as any, Math.max(1, nodes.length)]}
@@ -291,7 +322,6 @@ export default function NodeMesh({
         />
       </instancedMesh>
 
-      {/* Crown for conquered nodes */}
       <instancedMesh
         ref={crownRef}
         args={[geomCrown, undefined as any, Math.max(1, nodes.length)]}
@@ -306,23 +336,23 @@ export default function NodeMesh({
         />
       </instancedMesh>
 
-      {/* One instanced mesh per kind */}
       {buckets.map((bucket) => {
         if (bucket.nodes.length === 0) return null;
-        const material = makeMaterialFor(bucket.kind);
         return (
           <instancedMesh
             key={bucket.kind}
-            ref={(m) => {
-              meshRefs.current[bucket.kind] = m;
-            }}
-            args={[geomFor[bucket.kind], material, bucket.nodes.length]}
+            ref={refsByKind[bucket.kind]}
+            args={[geomFor[bucket.kind], materials[bucket.kind], bucket.nodes.length]}
             frustumCulled={false}
             onPointerOver={(e) => {
               e.stopPropagation();
               const i = e.instanceId;
-              if (typeof i === 'number') onHover(bucket.ids[i]);
-              document.body.style.cursor = 'pointer';
+              if (typeof i !== 'number') return;
+              const id = bucket.ids[i];
+              if (visibleIds.has(id)) {
+                onHover(id);
+                document.body.style.cursor = 'pointer';
+              }
             }}
             onPointerOut={() => {
               onHover(null);
@@ -331,7 +361,9 @@ export default function NodeMesh({
             onClick={(e) => {
               e.stopPropagation();
               const i = e.instanceId;
-              if (typeof i === 'number') onSelect(bucket.ids[i]);
+              if (typeof i !== 'number') return;
+              const id = bucket.ids[i];
+              if (visibleIds.has(id)) onSelect(id);
             }}
           />
         );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import Scene from './three/Scene';
 import TopBar from './ui/TopBar';
 import LeftPanel from './ui/LeftPanel';
@@ -58,7 +58,36 @@ export default function App() {
     [],
   );
 
-  // Auto-focus camera + auto-expand domain/subdomain on selection.
+  // Combined select handler — every click on a domain/subdomain expands it
+  // and opens the panel + focuses the camera. Wrapping `select` here means
+  // re-clicking the same node still re-expands and re-focuses.
+  const handleSelect = useCallback(
+    (id: string) => {
+      const node = nodeById.get(id);
+      if (node) {
+        if (node.kind === 'domain') {
+          useGraphStore.getState().expandDomain(node.id);
+        } else if (node.kind === 'subdomain') {
+          if (node.parentId) useGraphStore.getState().expandDomain(node.parentId);
+          useGraphStore.getState().expandSubdomain(node.id);
+        } else if (node.parentId) {
+          const parent = nodeById.get(node.parentId);
+          if (parent?.kind === 'subdomain') {
+            useGraphStore.getState().expandSubdomain(parent.id);
+            if (parent.parentId) useGraphStore.getState().expandDomain(parent.parentId);
+          }
+        }
+        useGraphStore.getState().markInteracted();
+      }
+      const pos = layout.get(id)?.position;
+      if (pos) setFocus([pos.x, pos.y, pos.z]);
+      select(id);
+    },
+    [layout, setFocus, select],
+  );
+
+  // Also keep an effect for selection changes triggered from elsewhere
+  // (search results, breadcrumb clicks, list items in the left panel).
   useEffect(() => {
     if (!selectedId) return;
     const node = nodeById.get(selectedId);
@@ -292,10 +321,10 @@ export default function App() {
         domainIds={domainIds}
         conquered={conquered}
         onHover={hover}
-        onSelect={select}
+        onSelect={handleSelect}
       />
 
-      <TopBar nodes={graph.nodes} onPickNode={select} />
+      <TopBar nodes={graph.nodes} onPickNode={handleSelect} />
 
       <LeftPanel
         domains={graph.domains}
@@ -313,7 +342,7 @@ export default function App() {
         nodes={nodeById}
         domains={domainById}
         breadcrumbs={breadcrumbs}
-        onSelect={select}
+        onSelect={handleSelect}
       />
 
       <ModeOverlay
@@ -321,14 +350,14 @@ export default function App() {
         projects={graph.projects}
         tradeoffs={graph.tradeoffs}
         nodes={nodeById}
-        onSelect={select}
+        onSelect={handleSelect}
       />
 
       <Minimap
         nodes={graph.nodes}
         layout={layout}
         emphasized={emphasized}
-        onPick={select}
+        onPick={handleSelect}
       />
 
       <KeyboardHints />
