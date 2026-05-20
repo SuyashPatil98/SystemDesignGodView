@@ -120,6 +120,7 @@ function NebulaSprite({
       position={position}
       scale={[scale, scale, 1]}
       renderOrder={-2}
+      raycast={() => null}
     >
       <planeGeometry args={[1, 1]} />
       <primitive ref={matRef} object={material} attach="material" />

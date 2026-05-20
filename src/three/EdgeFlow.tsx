@@ -100,6 +100,7 @@ export default function EdgeFlow({ edges, layout, conquered }: Props) {
       ref={meshRef}
       args={[geometry, undefined as any, sparks.length]}
       frustumCulled={false}
+      raycast={() => null}
     >
       <meshBasicMaterial
         transparent

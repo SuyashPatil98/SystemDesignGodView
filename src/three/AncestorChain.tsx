@@ -69,6 +69,9 @@ export default function AncestorChain({ breadcrumbs, layout }: Props) {
     const obj = new LineSegments2(geo, mat);
     obj.frustumCulled = false;
     obj.renderOrder = 2;
+    // Critical: decorative. Never participate in raycasting so we don't steal
+    // clicks from the node icosahedrons beneath us.
+    obj.raycast = () => {};
     return obj;
     // Resolution updates on size changes are handled in a separate effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps

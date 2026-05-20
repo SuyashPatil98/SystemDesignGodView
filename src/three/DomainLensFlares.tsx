@@ -135,6 +135,8 @@ export default function DomainLensFlares({ nodes, layout, domainIds }: Props) {
       args={[geometry, material, domains.length]}
       frustumCulled={false}
       renderOrder={3}
+      // Decorative — never participate in raycasting.
+      raycast={() => null}
     />
   );
 }
