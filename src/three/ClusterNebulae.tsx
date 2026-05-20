@@ -71,11 +71,15 @@ function NebulaSprite({
   color,
   scale,
   seed,
+  baseOpacity,
+  ambientOpacity,
 }: {
   position: THREE.Vector3;
   color: THREE.Color;
   scale: number;
   seed: number;
+  baseOpacity: number;
+  ambientOpacity: number;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.ShaderMaterial>(null);
@@ -87,7 +91,7 @@ function NebulaSprite({
       fragmentShader: FRAGMENT,
       uniforms: {
         uTime: { value: 0 },
-        uOpacity: { value: 0.58 },
+        uOpacity: { value: baseOpacity * ambientOpacity },
         uColor: { value: color.clone() },
         uSeed: { value: seed },
       },
@@ -95,10 +99,17 @@ function NebulaSprite({
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
+    // base/ambient updated via useFrame so we can transition smoothly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [color, seed]);
 
   useFrame((_, delta) => {
-    if (matRef.current) matRef.current.uniforms.uTime.value += delta;
+    if (matRef.current) {
+      matRef.current.uniforms.uTime.value += delta;
+      const target = baseOpacity * ambientOpacity;
+      const cur = matRef.current.uniforms.uOpacity.value as number;
+      matRef.current.uniforms.uOpacity.value = cur + (target - cur) * 0.08;
+    }
     const mesh = meshRef.current;
     if (mesh) mesh.lookAt(camera.position);
   });
@@ -116,7 +127,11 @@ function NebulaSprite({
   );
 }
 
-export default function ClusterNebulae() {
+interface ClusterNebulaeProps {
+  ambientOpacity?: number; // 0..1, dims everything during focus mode
+}
+
+export default function ClusterNebulae({ ambientOpacity = 1 }: ClusterNebulaeProps) {
   const nebulae = useMemo(() => computeClusterNebulae(), []);
   return (
     <group>
@@ -127,6 +142,8 @@ export default function ClusterNebulae() {
           color={n.color}
           scale={170 + i * 10}
           seed={i * 1.7 + 0.31}
+          baseOpacity={0.58}
+          ambientOpacity={ambientOpacity}
         />
       ))}
     </group>

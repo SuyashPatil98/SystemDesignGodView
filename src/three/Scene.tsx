@@ -25,6 +25,8 @@ interface Props {
   hoveredId: string | null;
   domainIds: Set<string>;
   conquered: Set<string>;
+  breadcrumbs: GNode[];
+  focusedSubtreeId: string | null;
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
 }

@@ -5,10 +5,13 @@ import type { Positioned } from './layout';
 import NodeMesh from './NodeMesh';
 import EdgeCurves from './EdgeCurves';
 import EdgeFlow from './EdgeFlow';
+import EdgeHoverTargets from './EdgeHoverTargets';
 import LODLabels from './LODLabels';
 import ClusterLabels from './ClusterLabels';
 import ClusterNebulae from './ClusterNebulae';
 import DustField from './DustField';
+import AncestorChain from './AncestorChain';
+import DomainLensFlares from './DomainLensFlares';
 
 interface Props {
   nodes: GNode[];
@@ -20,6 +23,8 @@ interface Props {
   hoveredId: string | null;
   domainIds: Set<string>;
   conquered: Set<string>;
+  breadcrumbs: GNode[];          // for ancestor chain pulse
+  focusedSubtreeId: string | null;  // drives ambient dim
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
 }
@@ -34,6 +39,8 @@ export default function GalaxyGraph({
   hoveredId,
   domainIds,
   conquered,
+  breadcrumbs,
+  focusedSubtreeId,
   onHover,
   onSelect,
 }: Props) {
@@ -73,10 +80,21 @@ export default function GalaxyGraph({
     return { node, pos };
   }, [hoveredId, selectedId, nodes, layout]);
 
+  // When focus mode is on, dim the ambient (stars/dust/nebulae) so the
+  // isolated subtree visually pops.
+  const ambientOpacity = focusedSubtreeId ? 0.28 : 1.0;
+
+  // Node-name lookup map for edge tooltips.
+  const nodeNames = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const n of nodes) m.set(n.id, n.name);
+    return m;
+  }, [nodes]);
+
   return (
     <group>
-      <ClusterNebulae />
-      <DustField />
+      <ClusterNebulae ambientOpacity={ambientOpacity} />
+      <DustField ambientOpacity={ambientOpacity} />
 
       <EdgeCurves
         edges={visibleEdges}
@@ -87,11 +105,15 @@ export default function GalaxyGraph({
         conquered={conquered}
       />
 
-      <EdgeFlow
+      <EdgeFlow edges={visibleEdges} layout={layout} conquered={conquered} />
+
+      <EdgeHoverTargets
         edges={visibleEdges}
         layout={layout}
-        conquered={conquered}
+        nodeNames={nodeNames}
       />
+
+      <AncestorChain breadcrumbs={breadcrumbs} layout={layout} />
 
       <NodeMesh
         nodes={nodes}
@@ -103,6 +125,12 @@ export default function GalaxyGraph({
         conquered={conquered}
         onHover={onHover}
         onSelect={onSelect}
+      />
+
+      <DomainLensFlares
+        nodes={visibleNodes}
+        layout={layout}
+        domainIds={domainIds}
       />
 
       <LODLabels

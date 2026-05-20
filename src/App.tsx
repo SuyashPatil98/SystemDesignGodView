@@ -115,6 +115,32 @@ export default function App() {
     [selectedId],
   );
 
+  // When entering focus mode, frame the camera on the subtree's centroid.
+  useEffect(() => {
+    if (!focusedSubtreeId) return;
+    // Recompute subtree members (cheap).
+    const subtree = focusSubtreeIds({
+      focusedId: focusedSubtreeId,
+      nodes: graph.nodes,
+      edges: graph.edges,
+    });
+    let cx = 0,
+      cy = 0,
+      cz = 0,
+      n = 0;
+    for (const id of subtree) {
+      const p = layout.get(id)?.position;
+      if (!p) continue;
+      cx += p.x;
+      cy += p.y;
+      cz += p.z;
+      n++;
+    }
+    if (n > 0) {
+      setFocus([cx / n, cy / n, cz / n]);
+    }
+  }, [focusedSubtreeId, layout, setFocus]);
+
   // Focus-mode subtree (overrides everything else when active).
   const focusVisible = useMemo(
     () =>
@@ -320,6 +346,8 @@ export default function App() {
         hoveredId={hoveredId}
         domainIds={domainIds}
         conquered={conquered}
+        breadcrumbs={breadcrumbs}
+        focusedSubtreeId={focusedSubtreeId}
         onHover={hover}
         onSelect={handleSelect}
       />

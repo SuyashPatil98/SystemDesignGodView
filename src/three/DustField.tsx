@@ -32,18 +32,23 @@ const VERTEX = /* glsl */ `
 
 const FRAGMENT = /* glsl */ `
   precision mediump float;
+  uniform float uAmbient;
   varying vec3 vColor;
   varying float vFade;
   void main() {
     vec2 c = 2.0 * gl_PointCoord - 1.0;
     float r = dot(c, c);
     if (r > 1.0) discard;
-    float a = smoothstep(1.0, 0.0, r) * 0.35 * vFade;
+    float a = smoothstep(1.0, 0.0, r) * 0.35 * vFade * uAmbient;
     gl_FragColor = vec4(vColor, a);
   }
 `;
 
-export default function DustField() {
+interface Props {
+  ambientOpacity?: number;
+}
+
+export default function DustField({ ambientOpacity = 1 }: Props) {
   const meshRef = useRef<THREE.Points>(null);
   const matRef = useRef<THREE.ShaderMaterial>(null);
 
@@ -105,6 +110,7 @@ export default function DustField() {
         uniforms: {
           uTime: { value: 0 },
           uPixelRatio: { value: Math.min(2, window.devicePixelRatio || 1) },
+          uAmbient: { value: 1 },
         },
         transparent: true,
         depthWrite: false,
@@ -114,7 +120,11 @@ export default function DustField() {
   );
 
   useFrame((_, delta) => {
-    if (matRef.current) matRef.current.uniforms.uTime.value += delta;
+    if (matRef.current) {
+      matRef.current.uniforms.uTime.value += delta;
+      const cur = matRef.current.uniforms.uAmbient.value as number;
+      matRef.current.uniforms.uAmbient.value = cur + (ambientOpacity - cur) * 0.08;
+    }
     const points = meshRef.current;
     if (!points) return;
     const posAttr = points.geometry.attributes.position as THREE.BufferAttribute;
