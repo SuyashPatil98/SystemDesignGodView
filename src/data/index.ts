@@ -51,6 +51,7 @@ import { patterns } from './patterns';
 import { failureModes } from './failureModes';
 
 import { crossEdges } from './edges';
+import { resources as curatedResources } from './resources';
 
 // Overlay data (paths/projects/tradeoffs).
 import { learningPaths } from './learningPaths';
@@ -131,7 +132,15 @@ function filterValidEdges(nodes: GNode[], edges: GEdge[]): GEdge[] {
   return edges.filter((e) => ids.has(e.source) && ids.has(e.target));
 }
 
-const allNodes = dedupeNodes(collectNodes());
+// Merge curated learn-more links from data/resources.ts.
+function withResources(nodes: GNode[]): GNode[] {
+  return nodes.map((n) => {
+    const r = curatedResources[n.id];
+    return r ? { ...n, resources: r } : n;
+  });
+}
+
+const allNodes = withResources(dedupeNodes(collectNodes()));
 const allEdges = [
   ...deriveParentEdges(allNodes),
   ...deriveRelatedEdges(allNodes),

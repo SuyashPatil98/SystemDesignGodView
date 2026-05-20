@@ -1,4 +1,8 @@
-import { X, Brain, Workflow, AlertTriangle, Gauge, Wrench, GitBranch, BookOpen, Lightbulb, ChevronRight, Crown, Sparkles, Focus, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState } from 'react';
+import { X, Brain, Workflow, AlertTriangle, Gauge, Wrench, GitBranch, BookOpen, Lightbulb, ChevronRight, Crown, Sparkles, Focus, ChevronDown, ChevronUp, Link2, ExternalLink, Globe, FileText, Github, Youtube, Book, Search, GitCompare } from 'lucide-react';
+import { googleFallback } from '../data/resources';
+import { shareableUrl } from '../lib/urlState';
+import type { ResourceLink } from '../data/schema';
 import { motion, AnimatePresence } from 'framer-motion';
 import GlassPanel from './primitives/GlassPanel';
 import Section from './primitives/Section';
@@ -21,6 +25,40 @@ const difficultyColor: Record<string, any> = {
   expert: 'rose',
 };
 
+const RESOURCE_ICON: Record<ResourceLink['kind'], any> = {
+  wikipedia: Globe,
+  docs: FileText,
+  paper: FileText,
+  video: Youtube,
+  blog: ExternalLink,
+  book: Book,
+  github: Github,
+  search: Search,
+};
+
+function ResourceRow({ link }: { link: ResourceLink }) {
+  const Icon = RESOURCE_ICON[link.kind] ?? ExternalLink;
+  return (
+    <li>
+      <a
+        href={link.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group flex items-start gap-2 rounded-md border border-white/5 bg-white/[0.02] px-2 py-1.5 text-[12px] text-slate-200 hover:border-cyan-300/30 hover:bg-cyan-500/[0.05]"
+      >
+        <Icon size={12} className="mt-0.5 shrink-0 text-cyan-300" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate group-hover:text-cyan-100">{link.label}</div>
+          <div className="truncate text-[9px] uppercase tracking-wider text-slate-500">
+            {link.kind}
+          </div>
+        </div>
+        <ExternalLink size={10} className="mt-1 shrink-0 text-slate-500 group-hover:text-cyan-300" />
+      </a>
+    </li>
+  );
+}
+
 export default function RightPanel({
   nodes,
   domains,
@@ -37,6 +75,12 @@ export default function RightPanel({
   const expandedSubdomainIds = useGraphStore((s) => s.expandedSubdomainIds);
   const toggleDomainExpanded = useGraphStore((s) => s.toggleDomainExpanded);
   const toggleSubdomainExpanded = useGraphStore((s) => s.toggleSubdomainExpanded);
+  const compareA = useGraphStore((s) => s.compareA);
+  const compareB = useGraphStore((s) => s.compareB);
+  const addToCompare = useGraphStore((s) => s.addToCompare);
+  const mode = useGraphStore((s) => s.mode);
+  const activePathId = useGraphStore((s) => s.activePathId);
+  const [copied, setCopied] = useState(false);
 
   const node = selectedId ? nodes.get(selectedId) : null;
   const domain = node ? domains.get(node.domainId) : null;
@@ -150,6 +194,48 @@ export default function RightPanel({
                 >
                   <Focus size={13} />
                   {focusedSubtreeId === node.id ? 'Focused' : 'Isolate'}
+                </button>
+              </div>
+
+              {/* Secondary actions: compare + share link */}
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => addToCompare(node.id)}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition ${
+                    compareA === node.id || compareB === node.id
+                      ? 'border-emerald-300/60 bg-emerald-500/10 text-emerald-100'
+                      : 'border-white/10 bg-white/[0.02] text-slate-300 hover:border-emerald-300/40 hover:text-emerald-100'
+                  }`}
+                  title="Pick this node to compare. Pick a second node to open the compare panel."
+                >
+                  <GitCompare size={11} />
+                  {compareA === node.id
+                    ? 'A: this node'
+                    : compareB === node.id
+                    ? 'B: this node'
+                    : !compareA
+                    ? 'Compare A'
+                    : 'Compare B'}
+                </button>
+                <button
+                  onClick={async () => {
+                    const url = shareableUrl({
+                      selectedId: node.id,
+                      mode,
+                      focusedSubtreeId,
+                      activePathId,
+                    });
+                    try {
+                      await navigator.clipboard.writeText(url);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1600);
+                    } catch {}
+                  }}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 hover:border-cyan-300/40 hover:text-cyan-100"
+                  title="Copy a deep link to this node"
+                >
+                  <Link2 size={11} />
+                  {copied ? 'Copied!' : 'Copy link'}
                 </button>
               </div>
 
@@ -331,6 +417,18 @@ export default function RightPanel({
                   </div>
                 </Section>
               )}
+
+              {/* Resources — always shown; curated links first, Google fallback last */}
+              <Section title="Resources" defaultOpen={true} count={(node.resources?.length ?? 0) + 1}>
+                <ul className="space-y-1.5">
+                  {(node.resources ?? []).map((r, i) => (
+                    <ResourceRow key={i} link={r} />
+                  ))}
+                  <ResourceRow
+                    link={googleFallback(node.name, domain?.name)}
+                  />
+                </ul>
+              </Section>
 
               {node.tags && node.tags.length > 0 && (
                 <Section title="Tags" defaultOpen={false}>

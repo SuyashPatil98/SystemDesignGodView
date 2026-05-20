@@ -29,6 +29,7 @@ interface Props {
   focusedSubtreeId: string | null;  // drives ambient dim
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
+  onShiftSelect?: (id: string) => void;
 }
 
 export default function GalaxyGraph({
@@ -45,6 +46,7 @@ export default function GalaxyGraph({
   focusedSubtreeId,
   onHover,
   onSelect,
+  onShiftSelect,
 }: Props) {
   const visibleNodes = useMemo(
     () => nodes.filter((n) => visibleIds.has(n.id)),
@@ -127,6 +129,7 @@ export default function GalaxyGraph({
         conquered={conquered}
         onHover={onHover}
         onSelect={onSelect}
+        onShiftSelect={onShiftSelect}
       />
 
       <DomainLensFlares

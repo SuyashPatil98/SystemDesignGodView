@@ -54,6 +54,15 @@ interface State {
   // Mobile UI — hamburger toggles the left navigator drawer.
   mobileMenuOpen: boolean;
 
+  // Compare mode — A4: pick two nodes and view them side-by-side.
+  compareA: string | null;
+  compareB: string | null;
+  compareOpen: boolean;
+
+  // Quiz mode — A3.
+  quizOpen: boolean;
+  quizDomainId: string | null;
+
   select: (id: string | null) => void;
   hover: (id: string | null) => void;
   setMode: (m: Mode) => void;
@@ -82,6 +91,11 @@ interface State {
   setFocusedSubtree: (id: string | null) => void;
   setNearestDomain: (id: string | null) => void;
   setMobileMenuOpen: (b: boolean) => void;
+  addToCompare: (id: string) => void;
+  clearCompare: () => void;
+  setCompareOpen: (b: boolean) => void;
+  openQuiz: (domainId: string | null) => void;
+  closeQuiz: () => void;
 
   // Conquest actions.
   conquer: (id: string) => void;
@@ -124,6 +138,11 @@ export const useGraphStore = create<State>((set) => ({
   focusedSubtreeId: null,
   nearestDomainId: null,
   mobileMenuOpen: false,
+  compareA: null,
+  compareB: null,
+  compareOpen: false,
+  quizOpen: false,
+  quizDomainId: null,
 
   select: (id) => set({ selectedId: id }),
   hover: (id) => set({ hoveredId: id }),
@@ -205,6 +224,24 @@ export const useGraphStore = create<State>((set) => ({
   setNearestDomain: (id) =>
     set((s) => (s.nearestDomainId === id ? {} : { nearestDomainId: id })),
   setMobileMenuOpen: (b) => set({ mobileMenuOpen: b }),
+  addToCompare: (id) =>
+    set((s) => {
+      if (s.compareA === id || s.compareB === id) {
+        // Toggle off if already selected.
+        return {
+          compareA: s.compareA === id ? null : s.compareA,
+          compareB: s.compareB === id ? null : s.compareB,
+        };
+      }
+      if (!s.compareA) return { compareA: id };
+      if (!s.compareB) return { compareB: id, compareOpen: true };
+      // Both slots full — shift A out, B becomes A, new id is B.
+      return { compareA: s.compareB, compareB: id, compareOpen: true };
+    }),
+  clearCompare: () => set({ compareA: null, compareB: null, compareOpen: false }),
+  setCompareOpen: (b) => set({ compareOpen: b }),
+  openQuiz: (domainId) => set({ quizOpen: true, quizDomainId: domainId }),
+  closeQuiz: () => set({ quizOpen: false }),
 
   conquer: (id) =>
     set((s) => {

@@ -31,6 +31,22 @@ export type EdgeKind =
   | 'tradeoff-of'
   | 'fails-as';
 
+export type ResourceKind =
+  | 'wikipedia'
+  | 'docs'
+  | 'paper'
+  | 'video'
+  | 'blog'
+  | 'book'
+  | 'github'
+  | 'search';
+
+export interface ResourceLink {
+  kind: ResourceKind;
+  label: string;
+  url: string;
+}
+
 export interface GNode {
   id: string;
   name: string;
@@ -60,6 +76,9 @@ export interface GNode {
   // Cross-links (additional to parent edge).
   relatedIds?: string[];
   toolIds?: string[];
+
+  // Curated external resources — populated by data/resources.ts.
+  resources?: ResourceLink[];
 
   // Visual hints — most are computed in layout, but a node may pin overrides.
   color?: string;

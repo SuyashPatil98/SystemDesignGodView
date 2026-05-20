@@ -29,6 +29,7 @@ interface Props {
   focusedSubtreeId: string | null;
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
+  onShiftSelect?: (id: string) => void;
 }
 
 export default function Scene(props: Props) {

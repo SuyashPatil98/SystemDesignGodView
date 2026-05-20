@@ -56,6 +56,7 @@ export default function LeftPanel({
   const setShowOnlyConquered = useGraphStore((s) => s.setShowOnlyConquered);
   const setShowOnlyUnconquered = useGraphStore((s) => s.setShowOnlyUnconquered);
   const clearConquered = useGraphStore((s) => s.clearConquered);
+  const openQuiz = useGraphStore((s) => s.openQuiz);
 
   const expandedDomainIds = useGraphStore((s) => s.expandedDomainIds);
   const expandedSubdomainIds = useGraphStore((s) => s.expandedSubdomainIds);
@@ -219,6 +220,13 @@ export default function LeftPanel({
                 );
               })}
             </div>
+
+            <button
+              onClick={() => openQuiz(null)}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-violet-300/30 bg-violet-500/[0.08] px-2 py-2 text-[12px] font-semibold text-violet-100 hover:bg-violet-500/[0.16]"
+            >
+              <Sparkles size={12} /> Quiz me
+            </button>
 
             {conquered.size > 0 && (
               <button

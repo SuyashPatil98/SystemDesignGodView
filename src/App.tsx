@@ -23,6 +23,9 @@ import { focusSubtreeIds } from './lib/subtree';
 import { Focus, X, MousePointerClick, MapPin } from 'lucide-react';
 import { getClusters, domainColor } from './three/layout';
 import OnboardingTour from './ui/OnboardingTour';
+import ComparePanel from './ui/ComparePanel';
+import QuizModal from './ui/QuizModal';
+import { parseUrl, replaceUrl } from './lib/urlState';
 
 export default function App() {
   const layout = useMemo(
@@ -55,11 +58,48 @@ export default function App() {
   const hasInteracted = useGraphStore((s) => s.hasInteracted);
   const markInteracted = useGraphStore((s) => s.markInteracted);
   const nearestDomainId = useGraphStore((s) => s.nearestDomainId);
+  const setActivePath = useGraphStore((s) => s.setActivePath);
+  const setActiveProject = useGraphStore((s) => s.setActiveProject);
+  const setActiveTradeoff = useGraphStore((s) => s.setActiveTradeoff);
+  const addToCompare = useGraphStore((s) => s.addToCompare);
+  const compareA = useGraphStore((s) => s.compareA);
+  const compareB = useGraphStore((s) => s.compareB);
+  const compareOpen = useGraphStore((s) => s.compareOpen);
+  const clearCompare = useGraphStore((s) => s.clearCompare);
 
   const domainIds = useMemo(
     () => new Set(graph.domains.map((d) => d.id)),
     [],
   );
+
+  // ─── URL deep-link sync ───
+  // On mount, parse query string and restore state.
+  useEffect(() => {
+    const s = parseUrl();
+    if (s.mode) useGraphStore.getState().setMode(s.mode);
+    if (s.activePathId) useGraphStore.getState().setActivePath(s.activePathId);
+    if (s.activeProjectId) useGraphStore.getState().setActiveProject(s.activeProjectId);
+    if (s.activeTradeoffId) useGraphStore.getState().setActiveTradeoff(s.activeTradeoffId);
+    if (s.focusedSubtreeId) useGraphStore.getState().setFocusedSubtree(s.focusedSubtreeId);
+    if (s.selectedId) {
+      requestAnimationFrame(() => {
+        useGraphStore.getState().select(s.selectedId);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Push relevant state back to the URL.
+  useEffect(() => {
+    replaceUrl({
+      selectedId,
+      mode,
+      focusedSubtreeId,
+      activePathId,
+      activeProjectId,
+      activeTradeoffId,
+    });
+  }, [selectedId, mode, focusedSubtreeId, activePathId, activeProjectId, activeTradeoffId]);
 
   // Combined select handler — every click on a domain/subdomain expands it
   // and opens the panel + focuses the camera. Wrapping `select` here means
@@ -412,6 +452,7 @@ export default function App() {
         focusedSubtreeId={focusedSubtreeId}
         onHover={hover}
         onSelect={handleSelect}
+        onShiftSelect={addToCompare}
       />
 
       <TopBar nodes={graph.nodes} onPickNode={handleSelect} />
@@ -489,6 +530,26 @@ export default function App() {
       })()}
 
       <OnboardingTour />
+
+      <ComparePanel nodes={nodeById} onSelect={handleSelect} />
+      <QuizModal nodes={graph.nodes} domains={graph.domains} />
+
+      {/* Pending-compare chip — A is picked but B isn't yet. */}
+      {compareA && !compareB && !compareOpen && (() => {
+        const a = nodeById.get(compareA);
+        if (!a) return null;
+        return (
+          <button
+            onClick={() => clearCompare()}
+            className="pointer-events-auto absolute bottom-5 right-5 z-20 flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-500/[0.08] px-3 py-1.5 text-[11px] text-emerald-100 shadow-[0_0_18px_rgba(52,211,153,0.25)] backdrop-blur md:bottom-auto md:top-[124px]"
+          >
+            <span className="text-emerald-300">A:</span>
+            <span className="text-white">{a.name}</span>
+            <span className="text-slate-400">· shift-click another to compare</span>
+            <X size={11} className="text-slate-400" />
+          </button>
+        );
+      })()}
 
       {focusedNode && (
         <button

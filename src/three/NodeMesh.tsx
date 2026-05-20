@@ -14,6 +14,7 @@ interface Props {
   conquered: Set<string>;
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
+  onShiftSelect?: (id: string) => void;
 }
 
 // Per-kind geometry — gives the eye an immediate read on *what kind* of node
@@ -95,6 +96,7 @@ export default function NodeMesh({
   conquered,
   onHover,
   onSelect,
+  onShiftSelect,
 }: Props) {
   // Refs to each kind's InstancedMesh. Stable across re-renders.
   const domainRef = useRef<THREE.InstancedMesh>(null);
@@ -363,7 +365,12 @@ export default function NodeMesh({
               const i = e.instanceId;
               if (typeof i !== 'number') return;
               const id = bucket.ids[i];
-              if (visibleIds.has(id)) onSelect(id);
+              if (!visibleIds.has(id)) return;
+              if (e.nativeEvent.shiftKey && onShiftSelect) {
+                onShiftSelect(id);
+              } else {
+                onSelect(id);
+              }
             }}
           />
         );
