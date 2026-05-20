@@ -221,7 +221,7 @@ export function computeLayout(
     out.set(d.id, {
       position: dir.clone().multiplyScalar(D_DOMAIN_FROM_ORIGIN),
       color: colorForDomain(d.id),
-      size: 3.4,
+      size: 5.2,
     });
   });
 
@@ -304,4 +304,40 @@ export function domainColor(domainId: string): string {
 
 export function getClusters(): Cluster[] {
   return CLUSTERS;
+}
+
+// Compute world-space centroid + color for each super-cluster, used for the
+// floating region labels.
+export interface ClusterCentroid {
+  id: string;
+  name: string;
+  position: THREE.Vector3;
+  color: string;
+  hue: number;
+}
+
+const CLUSTER_HUES: Record<string, number> = {
+  foundations: 195,
+  storage: 35,
+  'devops-cloud': 130,
+  data: 280,
+  ml: 330,
+  genai: 20,
+};
+
+export function computeClusterCentroids(): ClusterCentroid[] {
+  const clusterDirs = fibonacciSphereDirs(CLUSTERS.length);
+  // Push the region label a bit further out than the domains themselves
+  // so it floats *above* the cluster like a constellation name.
+  const LABEL_RADIUS = D_DOMAIN_FROM_ORIGIN + 26;
+  return CLUSTERS.map((c, i) => {
+    const dir = clusterDirs[i];
+    return {
+      id: c.id,
+      name: c.name,
+      position: dir.clone().multiplyScalar(LABEL_RADIUS),
+      color: new THREE.Color().setHSL((CLUSTER_HUES[c.id] ?? 200) / 360, 0.75, 0.65).getStyle(),
+      hue: CLUSTER_HUES[c.id] ?? 200,
+    };
+  });
 }

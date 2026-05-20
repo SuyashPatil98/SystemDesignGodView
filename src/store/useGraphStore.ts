@@ -30,7 +30,10 @@ interface State {
   activeProjectId: string | null;
   activeTradeoffId: string | null;
   filters: Filters;
-  expandedDomains: Set<string>;
+  // Progressive disclosure: which domains/subdomains are open right now.
+  expandedDomainIds: Set<string>;
+  expandedSubdomainIds: Set<string>;
+  hasInteracted: boolean; // first-load hint dismissal
   showMinimap: boolean;
   showLegend: boolean;
   showHints: boolean;
@@ -58,7 +61,13 @@ interface State {
   setMinInterview: (n: number) => void;
   setMinProduction: (n: number) => void;
   resetFilters: () => void;
+  expandDomain: (id: string) => void;
   toggleDomainExpanded: (id: string) => void;
+  expandSubdomain: (id: string) => void;
+  toggleSubdomainExpanded: (id: string) => void;
+  expandAll: (domainIds: string[], subdomainIds: string[]) => void;
+  collapseAll: () => void;
+  markInteracted: () => void;
   setShowMinimap: (b: boolean) => void;
   setShowLegend: (b: boolean) => void;
   setShowHints: (b: boolean) => void;
@@ -93,7 +102,9 @@ export const useGraphStore = create<State>((set) => ({
   activeProjectId: null,
   activeTradeoffId: null,
   filters: emptyFilters,
-  expandedDomains: new Set(),
+  expandedDomainIds: new Set(),
+  expandedSubdomainIds: new Set(),
+  hasInteracted: false,
   showMinimap: true,
   showLegend: true,
   showHints: true,
@@ -137,12 +148,44 @@ export const useGraphStore = create<State>((set) => ({
   setMinProduction: (n) =>
     set((s) => ({ filters: { ...s.filters, minProduction: n } })),
   resetFilters: () => set({ filters: emptyFilters }),
+  expandDomain: (id) =>
+    set((s) => {
+      if (s.expandedDomainIds.has(id)) return {};
+      const next = new Set(s.expandedDomainIds);
+      next.add(id);
+      return { expandedDomainIds: next };
+    }),
   toggleDomainExpanded: (id) =>
     set((s) => {
-      const next = new Set(s.expandedDomains);
+      const next = new Set(s.expandedDomainIds);
       next.has(id) ? next.delete(id) : next.add(id);
-      return { expandedDomains: next };
+      return { expandedDomainIds: next, hasInteracted: true };
     }),
+  expandSubdomain: (id) =>
+    set((s) => {
+      if (s.expandedSubdomainIds.has(id)) return {};
+      const next = new Set(s.expandedSubdomainIds);
+      next.add(id);
+      return { expandedSubdomainIds: next };
+    }),
+  toggleSubdomainExpanded: (id) =>
+    set((s) => {
+      const next = new Set(s.expandedSubdomainIds);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return { expandedSubdomainIds: next, hasInteracted: true };
+    }),
+  expandAll: (domainIds, subdomainIds) =>
+    set({
+      expandedDomainIds: new Set(domainIds),
+      expandedSubdomainIds: new Set(subdomainIds),
+      hasInteracted: true,
+    }),
+  collapseAll: () =>
+    set({
+      expandedDomainIds: new Set(),
+      expandedSubdomainIds: new Set(),
+    }),
+  markInteracted: () => set({ hasInteracted: true }),
   setShowMinimap: (b) => set({ showMinimap: b }),
   setShowLegend: (b) => set({ showLegend: b }),
   setShowHints: (b) => set({ showHints: b }),

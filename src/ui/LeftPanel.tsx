@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Filter, RotateCcw, Sparkles, Boxes, Network, AlertTriangle, Gauge, Layers, Wrench, Crown, Eye, EyeOff } from 'lucide-react';
+import { Filter, RotateCcw, Sparkles, Boxes, Network, AlertTriangle, Gauge, Layers, Wrench, Crown, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
 import GlassPanel from './primitives/GlassPanel';
 import Chip from './primitives/Chip';
 import Section from './primitives/Section';
@@ -56,6 +56,12 @@ export default function LeftPanel({
   const setShowOnlyConquered = useGraphStore((s) => s.setShowOnlyConquered);
   const setShowOnlyUnconquered = useGraphStore((s) => s.setShowOnlyUnconquered);
   const clearConquered = useGraphStore((s) => s.clearConquered);
+
+  const expandedDomainIds = useGraphStore((s) => s.expandedDomainIds);
+  const expandedSubdomainIds = useGraphStore((s) => s.expandedSubdomainIds);
+  const toggleDomainExpanded = useGraphStore((s) => s.toggleDomainExpanded);
+  const expandAll = useGraphStore((s) => s.expandAll);
+  const collapseAll = useGraphStore((s) => s.collapseAll);
 
   const filtersActive =
     filters.domainIds.size > 0 ||
@@ -119,7 +125,36 @@ export default function LeftPanel({
       </div>
 
       <div className="flex-1 space-y-1 overflow-y-auto px-4 py-2">
-        {/* Conquest section — always at top */}
+        {/* Expand / collapse controls — always at top */}
+        <Section title="View" defaultOpen>
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+              <Chip
+                tone="violet"
+                onClick={() => {
+                  const subIds = allNodes
+                    .filter((n) => n.kind === 'subdomain')
+                    .map((n) => n.id);
+                  expandAll(domains.map((d) => d.id), subIds);
+                }}
+              >
+                <ChevronDown size={11} /> Expand all
+              </Chip>
+              <Chip
+                tone="slate"
+                onClick={collapseAll}
+                active={expandedDomainIds.size === 0 && expandedSubdomainIds.size === 0}
+              >
+                <ChevronUp size={11} /> Collapse all
+              </Chip>
+            </div>
+            <p className="text-[10px] leading-snug text-slate-500">
+              Click a domain to expand it. Click a subdomain to drill deeper. Use Isolate from the right panel to study a branch alone.
+            </p>
+          </div>
+        </Section>
+
+        {/* Conquest section */}
         <Section title="Conquest" defaultOpen tone="warn">
           <div className="space-y-2">
             <div className="flex flex-wrap gap-1.5">

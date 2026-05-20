@@ -23,7 +23,7 @@ interface Props {
 export default function Scene(props: Props) {
   return (
     <Canvas
-      camera={{ position: [40, 60, 240], fov: 52, near: 0.1, far: 2000 }}
+      camera={{ position: [60, 90, 260], fov: 48, near: 0.1, far: 2000 }}
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
     >

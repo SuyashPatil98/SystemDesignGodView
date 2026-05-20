@@ -1,4 +1,4 @@
-import { X, Brain, Workflow, AlertTriangle, Gauge, Wrench, GitBranch, BookOpen, Lightbulb, ChevronRight, Crown, Sparkles, Focus } from 'lucide-react';
+import { X, Brain, Workflow, AlertTriangle, Gauge, Wrench, GitBranch, BookOpen, Lightbulb, ChevronRight, Crown, Sparkles, Focus, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GlassPanel from './primitives/GlassPanel';
 import Section from './primitives/Section';
@@ -33,6 +33,10 @@ export default function RightPanel({
   const toggleConquered = useGraphStore((s) => s.toggleConquered);
   const focusedSubtreeId = useGraphStore((s) => s.focusedSubtreeId);
   const setFocusedSubtree = useGraphStore((s) => s.setFocusedSubtree);
+  const expandedDomainIds = useGraphStore((s) => s.expandedDomainIds);
+  const expandedSubdomainIds = useGraphStore((s) => s.expandedSubdomainIds);
+  const toggleDomainExpanded = useGraphStore((s) => s.toggleDomainExpanded);
+  const toggleSubdomainExpanded = useGraphStore((s) => s.toggleSubdomainExpanded);
 
   const node = selectedId ? nodes.get(selectedId) : null;
   const domain = node ? domains.get(node.domainId) : null;
@@ -101,8 +105,35 @@ export default function RightPanel({
                 </button>
               </div>
 
-              {/* Action row: Focus + Conquer */}
+              {/* Action row: Expand/Collapse + Focus */}
               <div className="mt-3 flex gap-2">
+                {(node.kind === 'domain' || node.kind === 'subdomain') && (
+                  <button
+                    onClick={() => {
+                      if (node.kind === 'domain') toggleDomainExpanded(node.id);
+                      else toggleSubdomainExpanded(node.id);
+                    }}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-[12px] font-semibold transition ${
+                      (node.kind === 'domain'
+                        ? expandedDomainIds.has(node.id)
+                        : expandedSubdomainIds.has(node.id))
+                        ? 'border-violet-300/60 bg-violet-500/15 text-violet-100'
+                        : 'border-white/15 bg-white/[0.03] text-slate-200 hover:border-violet-300/40 hover:text-violet-100 hover:bg-violet-500/[0.07]'
+                    }`}
+                  >
+                    {(node.kind === 'domain'
+                      ? expandedDomainIds.has(node.id)
+                      : expandedSubdomainIds.has(node.id)) ? (
+                      <>
+                        <ChevronUp size={13} /> Collapse
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={13} /> Expand children
+                      </>
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={() =>
                     setFocusedSubtree(
@@ -116,7 +147,7 @@ export default function RightPanel({
                   }`}
                 >
                   <Focus size={13} />
-                  {focusedSubtreeId === node.id ? 'Showing subtree' : 'Isolate subtree'}
+                  {focusedSubtreeId === node.id ? 'Focused' : 'Isolate'}
                 </button>
               </div>
 

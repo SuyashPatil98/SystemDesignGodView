@@ -20,7 +20,7 @@ import { computeLayout } from './three/layout';
 import { breadcrumbs as bcrumbs } from './lib/breadcrumbs';
 import { emphasizedIds } from './lib/modes';
 import { focusSubtreeIds } from './lib/subtree';
-import { Focus, X } from 'lucide-react';
+import { Focus, X, MousePointerClick } from 'lucide-react';
 
 export default function App() {
   const layout = useMemo(
@@ -46,18 +46,40 @@ export default function App() {
   const showOnlyUnconquered = useGraphStore((s) => s.showOnlyUnconquered);
   const focusedSubtreeId = useGraphStore((s) => s.focusedSubtreeId);
   const setFocusedSubtree = useGraphStore((s) => s.setFocusedSubtree);
+  const expandedDomainIds = useGraphStore((s) => s.expandedDomainIds);
+  const expandedSubdomainIds = useGraphStore((s) => s.expandedSubdomainIds);
+  const toggleDomainExpanded = useGraphStore((s) => s.toggleDomainExpanded);
+  const toggleSubdomainExpanded = useGraphStore((s) => s.toggleSubdomainExpanded);
+  const hasInteracted = useGraphStore((s) => s.hasInteracted);
+  const markInteracted = useGraphStore((s) => s.markInteracted);
 
   const domainIds = useMemo(
     () => new Set(graph.domains.map((d) => d.id)),
     [],
   );
 
-  // Auto-focus camera when selection changes.
+  // Auto-focus camera + auto-expand domain/subdomain on selection.
   useEffect(() => {
     if (!selectedId) return;
+    const node = nodeById.get(selectedId);
+    if (node) {
+      if (node.kind === 'domain') {
+        useGraphStore.getState().expandDomain(node.id);
+      } else if (node.kind === 'subdomain') {
+        if (node.parentId) useGraphStore.getState().expandDomain(node.parentId);
+        useGraphStore.getState().expandSubdomain(node.id);
+      } else if (node.parentId) {
+        const parent = nodeById.get(node.parentId);
+        if (parent?.kind === 'subdomain') {
+          useGraphStore.getState().expandSubdomain(parent.id);
+          if (parent.parentId) useGraphStore.getState().expandDomain(parent.parentId);
+        }
+      }
+      markInteracted();
+    }
     const pos = layout.get(selectedId)?.position;
     if (pos) setFocus([pos.x, pos.y, pos.z]);
-  }, [selectedId, layout, setFocus]);
+  }, [selectedId, layout, setFocus, markInteracted]);
 
   const breadcrumbs = useMemo(
     () => (selectedId ? bcrumbs(nodeById, selectedId) : []),
@@ -77,7 +99,39 @@ export default function App() {
     [focusedSubtreeId],
   );
 
-  // Compute visible node set from filters + conquest toggle.
+  // Build a parent → child kind map once: which subdomain's domain is expanded,
+  // and which subdomain is expanded itself.
+  const nodeKindParentExpanded = useMemo(() => {
+    const m = new Map<string, 'domain' | 'sub' | 'concept' | 'unknown'>();
+    for (const n of graph.nodes) {
+      if (n.kind === 'domain') m.set(n.id, 'domain');
+      else if (n.kind === 'subdomain') m.set(n.id, 'sub');
+      else m.set(n.id, 'concept');
+    }
+    return m;
+  }, []);
+
+  // Modes that override progressive disclosure — when active, their nodes
+  // are forced visible.
+  const modeOverride = useMemo(() => {
+    if (mode === 'galaxy') return null;
+    const forceIds = new Set<string>();
+    if (mode === 'failure-mode') failureModeNodes.forEach((n) => forceIds.add(n.id));
+    else if (mode === 'metric') metricNodes.forEach((n) => forceIds.add(n.id));
+    else if (mode === 'pattern') patternNodes.forEach((n) => forceIds.add(n.id));
+    else if (mode === 'tool') toolNodes.forEach((n) => forceIds.add(n.id));
+    if (mode === 'learning-path' && activePathId) {
+      const p = graph.learningPaths.find((x) => x.id === activePathId);
+      p?.nodeIds.forEach((id) => forceIds.add(id));
+    }
+    if (mode === 'project' && activeProjectId) {
+      const p = graph.projects.find((x) => x.id === activeProjectId);
+      p?.conceptIds.forEach((id) => forceIds.add(id));
+    }
+    return forceIds;
+  }, [mode, activePathId, activeProjectId]);
+
+  // Compute visible node set from filters + conquest toggle + progressive disclosure.
   const visibleIds = useMemo(() => {
     const ids = new Set<string>();
     for (const n of graph.nodes) {
@@ -111,10 +165,45 @@ export default function App() {
         if (showOnlyUnconquered && conquered.has(n.id)) continue;
       }
 
+      // Progressive disclosure — only show what's been expanded into view.
+      // Focus mode bypasses this; mode overrides also bypass.
+      const isForced =
+        !!focusVisible || (modeOverride !== null && modeOverride.has(n.id));
+      if (!isForced) {
+        if (n.kind === 'domain') {
+          // Always visible.
+        } else if (n.kind === 'subdomain') {
+          if (!n.parentId || !expandedDomainIds.has(n.parentId)) continue;
+        } else {
+          // concept / pattern / tool / metric / failureMode
+          // Walk up: parent should be an expanded subdomain.
+          const parent = n.parentId ? nodeById.get(n.parentId) : undefined;
+          if (!parent) continue;
+          if (parent.kind === 'subdomain') {
+            if (!expandedSubdomainIds.has(parent.id)) continue;
+          } else if (parent.kind === 'concept') {
+            // detail leaf — show if grandparent subdomain is expanded
+            const grand = parent.parentId ? nodeById.get(parent.parentId) : undefined;
+            if (!grand || !expandedSubdomainIds.has(grand.id)) continue;
+          } else {
+            continue;
+          }
+        }
+      }
+
       ids.add(n.id);
     }
     return ids;
-  }, [filters, conquered, showOnlyConquered, showOnlyUnconquered, focusVisible]);
+  }, [
+    filters,
+    conquered,
+    showOnlyConquered,
+    showOnlyUnconquered,
+    focusVisible,
+    expandedDomainIds,
+    expandedSubdomainIds,
+    modeOverride,
+  ]);
 
   // Focused node name for the "Exit focus" chip.
   const focusedNode = useMemo(
@@ -243,6 +332,15 @@ export default function App() {
       />
 
       <KeyboardHints />
+
+      {!hasInteracted && (
+        <div className="pointer-events-none absolute left-1/2 top-[78px] z-20 -translate-x-1/2">
+          <div className="flex items-center gap-2 rounded-full border border-cyan-300/40 bg-ink-900/85 px-3.5 py-2 text-[12px] text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.35)] backdrop-blur animate-slow-pulse">
+            <MousePointerClick size={13} className="text-cyan-300" />
+            Click any <span className="font-semibold text-white">domain</span> to expand its branches
+          </div>
+        </div>
+      )}
 
       {focusedNode && (
         <button

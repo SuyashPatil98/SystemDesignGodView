@@ -5,6 +5,7 @@ import type { Positioned } from './layout';
 import NodeMesh from './NodeMesh';
 import EdgeCurves from './EdgeCurves';
 import LODLabels from './LODLabels';
+import ClusterLabels from './ClusterLabels';
 
 interface Props {
   nodes: GNode[];
@@ -98,17 +99,25 @@ export default function GalaxyGraph({
         selectedId={selectedId}
       />
 
+      <ClusterLabels />
+
       {domainLabels.map(({ node, pos }) =>
         pos ? (
           <Html
             key={node.id}
-            position={[pos.x, pos.y + 5.5, pos.z]}
+            position={[pos.x, pos.y + 7.5, pos.z]}
             center
-            distanceFactor={70}
+            distanceFactor={45}
             style={{ pointerEvents: 'none' }}
-            zIndexRange={[10, 0]}
+            zIndexRange={[11, 0]}
           >
-            <div className="no-select px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/95 glow-text whitespace-nowrap">
+            <div
+              className="no-select whitespace-nowrap px-2.5 py-1 text-[12px] font-bold uppercase tracking-[0.2em] text-white"
+              style={{
+                textShadow:
+                  '0 0 14px rgba(255,255,255,0.55), 0 0 4px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)',
+              }}
+            >
               {node.name}
             </div>
           </Html>
