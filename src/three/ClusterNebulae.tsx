@@ -87,7 +87,7 @@ function NebulaSprite({
       fragmentShader: FRAGMENT,
       uniforms: {
         uTime: { value: 0 },
-        uOpacity: { value: 0.42 },
+        uOpacity: { value: 0.58 },
         uColor: { value: color.clone() },
         uSeed: { value: seed },
       },
@@ -125,7 +125,7 @@ export default function ClusterNebulae() {
           key={n.id}
           position={n.position}
           color={n.color}
-          scale={130 + i * 8}
+          scale={170 + i * 10}
           seed={i * 1.7 + 0.31}
         />
       ))}

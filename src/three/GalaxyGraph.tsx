@@ -8,6 +8,7 @@ import EdgeFlow from './EdgeFlow';
 import LODLabels from './LODLabels';
 import ClusterLabels from './ClusterLabels';
 import ClusterNebulae from './ClusterNebulae';
+import DustField from './DustField';
 
 interface Props {
   nodes: GNode[];
@@ -75,6 +76,7 @@ export default function GalaxyGraph({
   return (
     <group>
       <ClusterNebulae />
+      <DustField />
 
       <EdgeCurves
         edges={visibleEdges}

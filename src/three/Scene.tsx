@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import Starfield from './Starfield';
 import CameraRig from './CameraRig';
 import GalaxyGraph from './GalaxyGraph';
+import EnvSetup from './EnvSetup';
 import type { GNode, GEdge } from '../data/schema';
 import type { Positioned } from './layout';
 
@@ -43,6 +44,7 @@ export default function Scene(props: Props) {
       <pointLight position={[-110, -60, -100]} intensity={0.55} color="#f472b6" />
       <pointLight position={[0, 120, 0]} intensity={0.4} color="#facc15" />
 
+      <EnvSetup />
       <Starfield />
       <GalaxyGraph {...props} />
 
@@ -50,10 +52,11 @@ export default function Scene(props: Props) {
 
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={1.7}
-          luminanceThreshold={0.04}
-          luminanceSmoothing={0.65}
+          intensity={2.0}
+          luminanceThreshold={0.03}
+          luminanceSmoothing={0.7}
           mipmapBlur
+          radius={0.9}
         />
         <ChromaticAberration
           offset={new THREE.Vector2(0.0008, 0.0008)}
