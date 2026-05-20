@@ -341,3 +341,24 @@ export function computeClusterCentroids(): ClusterCentroid[] {
     };
   });
 }
+
+// Direction + colour of each super-cluster — used by the nebula component to
+// render large soft glow clouds AT the cluster centre.
+export interface ClusterNebula {
+  id: string;
+  position: THREE.Vector3;
+  color: THREE.Color;
+}
+
+export function computeClusterNebulae(): ClusterNebula[] {
+  const clusterDirs = fibonacciSphereDirs(CLUSTERS.length);
+  return CLUSTERS.map((c, i) => ({
+    id: c.id,
+    position: clusterDirs[i].clone().multiplyScalar(D_DOMAIN_FROM_ORIGIN),
+    color: new THREE.Color().setHSL(
+      (CLUSTER_HUES[c.id] ?? 200) / 360,
+      0.85,
+      0.55,
+    ),
+  }));
+}

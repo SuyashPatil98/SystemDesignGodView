@@ -4,8 +4,10 @@ import type { GNode, GEdge } from '../data/schema';
 import type { Positioned } from './layout';
 import NodeMesh from './NodeMesh';
 import EdgeCurves from './EdgeCurves';
+import EdgeFlow from './EdgeFlow';
 import LODLabels from './LODLabels';
 import ClusterLabels from './ClusterLabels';
+import ClusterNebulae from './ClusterNebulae';
 
 interface Props {
   nodes: GNode[];
@@ -72,6 +74,8 @@ export default function GalaxyGraph({
 
   return (
     <group>
+      <ClusterNebulae />
+
       <EdgeCurves
         edges={visibleEdges}
         layout={layout}
@@ -80,6 +84,13 @@ export default function GalaxyGraph({
         hoveredId={hoveredId}
         conquered={conquered}
       />
+
+      <EdgeFlow
+        edges={visibleEdges}
+        layout={layout}
+        conquered={conquered}
+      />
+
       <NodeMesh
         nodes={visibleNodes}
         layout={layout}

@@ -1,5 +1,13 @@
 import { Canvas } from '@react-three/fiber';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import {
+  EffectComposer,
+  Bloom,
+  Vignette,
+  ChromaticAberration,
+  Noise,
+} from '@react-three/postprocessing';
+import { BlendFunction } from 'postprocessing';
+import * as THREE from 'three';
 import Starfield from './Starfield';
 import CameraRig from './CameraRig';
 import GalaxyGraph from './GalaxyGraph';
@@ -27,13 +35,13 @@ export default function Scene(props: Props) {
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
     >
-      <color attach="background" args={['#05070d']} />
-      <fog attach="fog" args={['#05070d', 280, 600]} />
+      <color attach="background" args={['#03050b']} />
+      <fog attach="fog" args={['#03050b', 300, 620]} />
 
-      <ambientLight intensity={0.65} />
-      <pointLight position={[120, 80, 80]} intensity={0.6} color="#22d3ee" />
-      <pointLight position={[-100, -80, -80]} intensity={0.5} color="#f472b6" />
-      <pointLight position={[0, 120, 0]} intensity={0.35} color="#facc15" />
+      <ambientLight intensity={0.55} />
+      <pointLight position={[140, 80, 80]} intensity={0.6} color="#22d3ee" />
+      <pointLight position={[-110, -60, -100]} intensity={0.55} color="#f472b6" />
+      <pointLight position={[0, 120, 0]} intensity={0.4} color="#facc15" />
 
       <Starfield />
       <GalaxyGraph {...props} />
@@ -42,10 +50,26 @@ export default function Scene(props: Props) {
 
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={1.6}
-          luminanceThreshold={0.05}
-          luminanceSmoothing={0.6}
+          intensity={1.7}
+          luminanceThreshold={0.04}
+          luminanceSmoothing={0.65}
           mipmapBlur
+        />
+        <ChromaticAberration
+          offset={new THREE.Vector2(0.0008, 0.0008)}
+          radialModulation={false}
+          modulationOffset={0}
+        />
+        <Vignette
+          eskil={false}
+          offset={0.22}
+          darkness={0.7}
+          blendFunction={BlendFunction.NORMAL}
+        />
+        <Noise
+          opacity={0.035}
+          premultiply
+          blendFunction={BlendFunction.SOFT_LIGHT}
         />
       </EffectComposer>
     </Canvas>
