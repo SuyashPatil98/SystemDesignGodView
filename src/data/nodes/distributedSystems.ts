@@ -24,7 +24,6 @@ export const distributedSystemsNodes: GNode[] = [
     mentalModel: 'CAP is too coarse — PACELC adds the everyday tradeoff between latency and consistency.',
     tradeoffs: ['CP systems sacrifice availability under partition (e.g., Spanner read latency)', 'AP systems return stale data (Cassandra QUORUM)'],
     designQuestions: ['Under partition, what does this system return?'],
-    relatedIds: ['to-strong-eventual'],
     interviewRelevance: 5,
   }),
   conceptNode('ds-linearizable', 'Linearizability', D, 'ds-consistency', 'All ops appear to take effect instantly at some point between invocation and response.', {

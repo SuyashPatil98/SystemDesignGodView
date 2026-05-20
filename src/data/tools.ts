@@ -30,7 +30,7 @@ const T = (
 export const tools: GNode[] = [
   // Containers / orchestration
   T('tool-docker', 'Docker', 'devops', 'devops-containers', 'Standardized OS-level virtualization producing immutable images.', 'Eliminates "works on my machine" by shipping the entire runtime, not just the binary.', ['containers']),
-  T('tool-k8s', 'Kubernetes', 'kubernetes', 'kubernetes', 'Declarative orchestrator for containers — reconciles desired vs actual state.', 'The de-facto control plane for production workloads; the abstraction every cloud now mimics.', ['orchestration']),
+  T('tool-k8s', 'Kubernetes', 'kubernetes', 'k8s-workloads', 'Declarative orchestrator for containers — reconciles desired vs actual state.', 'The de-facto control plane for production workloads; the abstraction every cloud now mimics.', ['orchestration']),
   T('tool-helm', 'Helm', 'kubernetes', 'k8s-packaging', 'Templated, versioned packaging for Kubernetes manifests.', 'Lets you ship one chart across environments instead of duplicating thousands of YAML lines.', ['packaging']),
   T('tool-argocd', 'Argo CD', 'cicd', 'cicd-gitops', 'GitOps continuous delivery — cluster state mirrors a git repo.', 'Makes rollback a git revert; makes audit a git log.', ['gitops']),
 
@@ -40,8 +40,8 @@ export const tools: GNode[] = [
   T('tool-gitlabci', 'GitLab CI', 'cicd', 'cicd-pipelines', 'YAML pipelines tightly integrated with GitLab.', 'Single-vendor DevOps stack from issue to deploy.', ['ci']),
 
   // IaC
-  T('tool-terraform', 'Terraform', 'iac', 'iac', 'Cloud-agnostic, state-tracking IaC with a vast provider ecosystem.', 'Closest the industry has to a universal infra language.', ['iac']),
-  T('tool-ansible', 'Ansible', 'iac', 'iac', 'Agentless configuration management via SSH and YAML playbooks.', 'Sweet spot for OS-level config on machines you already own.', ['config-mgmt']),
+  T('tool-terraform', 'Terraform', 'iac', 'iac-declarative', 'Cloud-agnostic, state-tracking IaC with a vast provider ecosystem.', 'Closest the industry has to a universal infra language.', ['iac']),
+  T('tool-ansible', 'Ansible', 'iac', 'iac-declarative', 'Agentless configuration management via SSH and YAML playbooks.', 'Sweet spot for OS-level config on machines you already own.', ['config-mgmt']),
 
   // Observability
   T('tool-prometheus', 'Prometheus', 'observability', 'observ-metrics', 'Pull-based metric collection with PromQL and a time-series store.', 'The metric backbone of cloud-native monitoring.', ['metrics']),
@@ -75,9 +75,9 @@ export const tools: GNode[] = [
   T('tool-flink', 'Apache Flink', 'streaming', 'stream-engines', 'True streaming engine with event-time semantics and exactly-once state.', 'Gold standard for stateful stream processing.', ['stream']),
   T('tool-airflow', 'Apache Airflow', 'data-eng', 'de-orchestration', 'Python-DAG orchestrator with a huge operator catalog.', 'Ubiquitous for batch pipelines; learn its sharp edges around scheduling.', ['orchestration']),
   T('tool-dbt', 'dbt', 'data-eng', 'de-transformation', 'SQL transformations with tests, docs, and lineage on top of warehouses.', 'Brought software engineering practices to analytics SQL.', ['transform']),
-  T('tool-snowflake', 'Snowflake', 'dw', 'dw', 'Managed cloud DW with separated storage and compute.', 'Reference DW for ergonomic, elastic analytics.', ['warehouse']),
-  T('tool-bigquery', 'BigQuery', 'dw', 'dw', 'Serverless DW with massively-parallel SQL and native ML.', 'GCP-native pay-per-query analytics.', ['warehouse']),
-  T('tool-databricks', 'Databricks', 'lakehouse', 'lakehouse', 'Managed lakehouse platform built on Spark and Delta Lake.', 'Reference lakehouse vendor; one stack for data + ML.', ['lakehouse']),
+  T('tool-snowflake', 'Snowflake', 'dw', 'dw-engines', 'Managed cloud DW with separated storage and compute.', 'Reference DW for ergonomic, elastic analytics.', ['warehouse']),
+  T('tool-bigquery', 'BigQuery', 'dw', 'dw-engines', 'Serverless DW with massively-parallel SQL and native ML.', 'GCP-native pay-per-query analytics.', ['warehouse']),
+  T('tool-databricks', 'Databricks', 'lakehouse', 'lakehouse-platforms', 'Managed lakehouse platform built on Spark and Delta Lake.', 'Reference lakehouse vendor; one stack for data + ML.', ['lakehouse']),
   T('tool-delta', 'Delta Lake', 'lakehouse', 'lake-formats', 'Open ACID table format on object storage.', 'Lakehouse semantics via transaction logs over Parquet.', ['format']),
   T('tool-iceberg', 'Apache Iceberg', 'lakehouse', 'lake-formats', 'Open table format with hidden partitioning and time travel.', 'Vendor-neutral lakehouse standard gaining strong traction.', ['format']),
   T('tool-hudi', 'Apache Hudi', 'lakehouse', 'lake-formats', 'Upsert-optimized table format with CDC primitives.', 'Strong fit for streaming CDC into the lake.', ['format']),

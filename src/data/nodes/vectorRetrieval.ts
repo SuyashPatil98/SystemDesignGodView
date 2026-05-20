@@ -34,7 +34,6 @@ export const vectorNodes: GNode[] = [
 
   conceptNode('vector-hybrid', 'Hybrid search', D, 'vector-retrieval', 'Combine sparse (BM25) and dense (vector) scores.', {
     whyItMatters: 'Beats vector-only on most realistic corpora.',
-    relatedIds: ['to-vector-keyword-hybrid'],
     interviewRelevance: 5,
   }),
   conceptNode('vector-reranking', 'Cross-encoder reranking', D, 'vector-retrieval', 'Use a heavier model to re-score top-k candidates with full pair attention.', {

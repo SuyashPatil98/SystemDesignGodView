@@ -25,7 +25,7 @@ export const apiNodes: GNode[] = [
   subNode(API, 'Architecture', API, 'REST, GraphQL, gRPC, webhooks.', 'Picking the right paradigm per consumer.', { id: 'api-arch' }),
   subNode(API, 'Versioning', API, 'URL, header, content-type strategies.', 'Wrong versioning blocks evolution forever.', { id: 'api-versioning' }),
   subNode(API, 'Pagination & filtering', API, 'Offset, cursor, keyset.', 'Performance and correctness for list endpoints.', { id: 'api-pagination' }),
-  conceptNode('api-rest', 'REST conventions', API, 'api-arch', 'Resource-oriented HTTP with cacheable verbs.', { whyItMatters: 'Universal tooling; the lingua franca of public APIs.', relatedIds: ['to-rest-graphql-grpc'] }),
+  conceptNode('api-rest', 'REST conventions', API, 'api-arch', 'Resource-oriented HTTP with cacheable verbs.', { whyItMatters: 'Universal tooling; the lingua franca of public APIs.' }),
   conceptNode('api-graphql', 'GraphQL', API, 'api-arch', 'Client picks fields; single endpoint.', { whyItMatters: 'Reduces over/under-fetching for product UIs.' }),
   conceptNode('api-grpc', 'gRPC', API, 'api-arch', 'Binary protobuf over HTTP/2.', { whyItMatters: 'Internal high-perf service-to-service standard.' }),
   conceptNode('api-cursor', 'Cursor pagination', API, 'api-pagination', 'Token-based stable pagination across mutations.', { whyItMatters: 'Avoids the duplication and skip bugs of offset.' }),
@@ -73,9 +73,9 @@ export const kubernetesNodes: GNode[] = [
 const IAC = 'iac';
 export const iacNodes: GNode[] = [
   domainNode(IAC, 'Infrastructure as Code', 'Versioned, reviewable, reproducible infra.', 'The only sustainable way to scale infra past one engineer.'),
-  subNode(IAC, 'Declarative IaC', IAC, 'Terraform, OpenTofu, Pulumi, CDK.', 'Describe the desired state; reconcile.', { id: 'iac' }),
-  conceptNode('iac-state', 'State management', IAC, 'iac', 'Where the source of truth of resources lives.', { whyItMatters: 'Bad state handling causes the worst infra outages.', failureModes: ['State drift; concurrent applies; lost state file.'] }),
-  conceptNode('iac-modules', 'Modules & reuse', IAC, 'iac', 'Encapsulate reusable infra patterns with inputs and outputs.', { whyItMatters: 'Stops the copy-paste IaC catastrophe.' }),
+  subNode(IAC, 'Declarative IaC', IAC, 'Terraform, OpenTofu, Pulumi, CDK.', 'Describe the desired state; reconcile.', { id: 'iac-declarative' }),
+  conceptNode('iac-state', 'State management', IAC, 'iac-declarative', 'Where the source of truth of resources lives.', { whyItMatters: 'Bad state handling causes the worst infra outages.', failureModes: ['State drift; concurrent applies; lost state file.'] }),
+  conceptNode('iac-modules', 'Modules & reuse', IAC, 'iac-declarative', 'Encapsulate reusable infra patterns with inputs and outputs.', { whyItMatters: 'Stops the copy-paste IaC catastrophe.' }),
 ];
 
 // ──────────────────────────── CI/CD ─────────────────────────
@@ -109,6 +109,7 @@ export const dataEngNodes: GNode[] = [
   subNode(DE, 'Orchestration', DE, 'Airflow, Argo Workflows, Dagster, Prefect.', 'How pipelines run on time and recover.', { id: 'de-orchestration' }),
   subNode(DE, 'Transformation', DE, 'dbt, Spark, SQL — modeling data into curated tables.', 'The shape of analytics.', { id: 'de-transformation' }),
   subNode(DE, 'Quality', DE, 'Tests, contracts, freshness, lineage.', 'Without it, all downstream is suspect.', { id: 'de-quality' }),
+  subNode(DE, 'Patterns', DE, 'Lambda, Kappa, medallion, CDC.', 'Reusable shapes for data pipelines.', { id: 'de-patterns' }),
   conceptNode('de-contracts', 'Data contracts', DE, 'de-quality', 'Producer-enforced schemas + SLAs for downstream consumers.', { whyItMatters: 'Stops upstream from silently breaking downstream.', relatedIds: ['fm-schema-drift', 'msg-schema-registry'] }),
   conceptNode('de-medallion', 'Medallion (bronze/silver/gold)', DE, 'de-transformation', 'Layered tables with increasing quality and curation.', { whyItMatters: 'Provides consistent quality boundaries.', relatedIds: ['pat-medallion'] }),
 ];
@@ -117,9 +118,9 @@ export const dataEngNodes: GNode[] = [
 const DW = 'dw';
 export const dwNodes: GNode[] = [
   domainNode(DW, 'Data Warehousing', 'Modeled, columnar analytics at petabyte scale.', 'Where analytics workloads belong.'),
-  subNode(DW, 'Warehouse engines', DW, 'Snowflake, BigQuery, Redshift.', 'Different cost and performance shapes.', { id: 'dw' }),
-  conceptNode('dw-star-schema', 'Star schema', DW, 'dw', 'Fact tables surrounded by dimensions.', { whyItMatters: 'The workhorse data model for BI.' }),
-  conceptNode('dw-columnar', 'Columnar storage', DW, 'dw', 'Store by column for compression and analytic scan speed.', { whyItMatters: 'Why analytics is fast on warehouses but slow on RDBMS.' }),
+  subNode(DW, 'Warehouse engines', DW, 'Snowflake, BigQuery, Redshift.', 'Different cost and performance shapes.', { id: 'dw-engines' }),
+  conceptNode('dw-star-schema', 'Star schema', DW, 'dw-engines', 'Fact tables surrounded by dimensions.', { whyItMatters: 'The workhorse data model for BI.' }),
+  conceptNode('dw-columnar', 'Columnar storage', DW, 'dw-engines', 'Store by column for compression and analytic scan speed.', { whyItMatters: 'Why analytics is fast on warehouses but slow on RDBMS.' }),
 ];
 
 // ──────────────────────────── Lakes & Lakehouses ─────────────────────────
@@ -128,7 +129,7 @@ export const lakehouseNodes: GNode[] = [
   domainNode(LH, 'Lakes & Lakehouses', 'Open-format storage with warehouse-grade semantics.', 'The cost-effective platform for BI + ML on the same data.'),
   subNode(LH, 'Table formats', LH, 'Delta, Iceberg, Hudi.', 'The open standard for lakehouse semantics.', { id: 'lake-formats' }),
   subNode(LH, 'Architecture', LH, 'Medallion, lakehouse patterns.', 'Layered quality boundaries.', { id: 'lake-patterns' }),
-  subNode(LH, 'Lakehouse platforms', LH, 'Managed platforms like Databricks.', 'The vendor surface.', { id: 'lakehouse' }),
+  subNode(LH, 'Lakehouse platforms', LH, 'Managed platforms like Databricks.', 'The vendor surface.', { id: 'lakehouse-platforms' }),
   conceptNode('lake-time-travel', 'Time travel', LH, 'lake-formats', 'Query a table as of a past snapshot.', { whyItMatters: 'Debugging, audits, accidental-deletion recovery.' }),
   conceptNode('lake-compaction', 'Compaction & small files', LH, 'lake-formats', 'Streaming writes create many small files; compact to fewer larger files.', { whyItMatters: 'Without compaction, query performance degrades over time.' }),
 ];

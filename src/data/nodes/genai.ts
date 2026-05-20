@@ -60,7 +60,6 @@ export const genaiNodes: GNode[] = [
   }),
   conceptNode('genai-hybrid-search', 'Hybrid search', D, 'genai-rag', 'Combine BM25 keyword + vector similarity.', {
     whyItMatters: 'Almost always beats vector alone, especially for code, IDs, names.',
-    relatedIds: ['to-vector-keyword-hybrid'],
   }),
   conceptNode('genai-context-window-rag', 'Citations & grounding', D, 'genai-rag', 'Require the model to cite retrieved passages.', {
     whyItMatters: 'Cuts hallucination and gives users a way to verify.',

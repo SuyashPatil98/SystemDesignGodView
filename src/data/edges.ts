@@ -59,7 +59,6 @@ export const crossEdges: GEdge[] = [
   e('msg-schema-registry', 'fm-schema-drift', 'related'),
 
   // API design ↔ system design
-  e('api-rest', 'to-rest-graphql-grpc' as any, 'related'), // overlay ref ignored at edge level
   e('api-grpc', 'tool-otel', 'related'),
 
   // DevOps / Cloud / K8s / CI/CD
@@ -140,6 +139,4 @@ export const crossEdges: GEdge[] = [
   e('vector-engines', 'tool-weaviate', 'implements'),
   e('vector-reindex', 'fm-embedding-drift', 'related'),
 
-  // Production AI → everything
-  e('proj-fraud' as any, 'pai-arch', 'related'), // unused
 ];
