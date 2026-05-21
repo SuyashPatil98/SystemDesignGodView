@@ -222,7 +222,6 @@ export default function RightPanel({
                     const url = shareableUrl({
                       selectedId: node.id,
                       mode,
-                      focusedSubtreeId,
                       activePathId,
                     });
                     try {

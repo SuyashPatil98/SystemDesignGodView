@@ -73,14 +73,24 @@ export default function App() {
   );
 
   // ─── URL deep-link sync ───
-  // On mount, parse query string and restore state.
+  // On mount: parse the query string and restore selection/mode/overlays.
+  // We deliberately DO NOT restore focusedSubtreeId from the URL — focus
+  // mode is a transient view, and a stuck ?f= in a bookmark would filter
+  // every click and look like clicks are broken.
   useEffect(() => {
+    // Strip any legacy ?f= from the URL so it can't sneak back in.
+    if (new URLSearchParams(window.location.search).has('f')) {
+      const next = new URLSearchParams(window.location.search);
+      next.delete('f');
+      const qs = next.toString();
+      window.history.replaceState({}, '', qs ? `?${qs}` : window.location.pathname);
+    }
+
     const s = parseUrl();
     if (s.mode) useGraphStore.getState().setMode(s.mode);
     if (s.activePathId) useGraphStore.getState().setActivePath(s.activePathId);
     if (s.activeProjectId) useGraphStore.getState().setActiveProject(s.activeProjectId);
     if (s.activeTradeoffId) useGraphStore.getState().setActiveTradeoff(s.activeTradeoffId);
-    if (s.focusedSubtreeId) useGraphStore.getState().setFocusedSubtree(s.focusedSubtreeId);
     if (s.selectedId) {
       requestAnimationFrame(() => {
         useGraphStore.getState().select(s.selectedId);
@@ -89,17 +99,16 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Push relevant state back to the URL.
+  // Push relevant state back to the URL (focus excluded intentionally).
   useEffect(() => {
     replaceUrl({
       selectedId,
       mode,
-      focusedSubtreeId,
       activePathId,
       activeProjectId,
       activeTradeoffId,
     });
-  }, [selectedId, mode, focusedSubtreeId, activePathId, activeProjectId, activeTradeoffId]);
+  }, [selectedId, mode, activePathId, activeProjectId, activeTradeoffId]);
 
   // Combined select handler — every click on a domain/subdomain expands it
   // and opens the panel + focuses the camera. Wrapping `select` here means
