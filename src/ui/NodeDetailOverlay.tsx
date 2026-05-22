@@ -201,6 +201,18 @@ export default function NodeDetailOverlay({
         }
       `}</style>
 
+      {/* Mobile-only backdrop blur — softens the galaxy behind the
+          overlay so the content reads cleanly on a small screen. The
+          desktop layout has dedicated columns and doesn't need it. */}
+      <div
+        className="absolute inset-0 md:hidden"
+        style={{
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          background: 'rgba(0,0,0,0.35)',
+        }}
+      />
+
       {/* Vignette */}
       <div
         className="absolute inset-0"
