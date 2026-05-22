@@ -187,11 +187,18 @@ export default function NodeDetailOverlay({
       className="pointer-events-none fixed inset-0 z-30 select-none animate-fade-in"
       style={{ animation: 'overlay-fade 220ms ease-out' }}
     >
-      {/* Local CSS: keyframes for orbit ring + fade-in */}
+      {/* Local CSS: keyframes for orbit ring + fade-in, plus mobile
+          layout overrides so the title hugs the edge instead of being
+          pushed past the (hidden-on-mobile) navigator. */}
       <style>{`
         @keyframes orbit-cw  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes orbit-ccw { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
         @keyframes overlay-fade { from { opacity: 0; } to { opacity: 1; } }
+        @media (max-width: 767px) {
+          .ndo-left  { left: 20px !important; top: 88px !important; max-width: calc(100vw - 40px) !important; }
+          .ndo-rel   { left: 20px !important; max-width: calc(100vw - 40px) !important; bottom: 24px !important; }
+          .ndo-stack { top: 360px !important; bottom: 24px !important; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        }
       `}</style>
 
       {/* Vignette */}
@@ -242,10 +249,35 @@ export default function NodeDetailOverlay({
         </div>
       </div>
 
-      {/* Left column — title block. Anchored past the 300px navigator so
-          the headline never paints over the domain list. */}
+      {/* Mobile close — always-visible × at the top-right corner. The
+          desktop ESC pill at the bottom-right covers the same job but
+          is hidden on small screens, leaving the user with no way out. */}
+      <button
+        type="button"
+        onClick={() => select(null)}
+        aria-label="Close"
+        className="pointer-events-auto absolute z-20 md:hidden flex items-center justify-center"
+        style={{
+          top: 12,
+          right: 12,
+          width: 38,
+          height: 38,
+          fontSize: 18,
+          lineHeight: 1,
+          color: '#fff',
+          background: 'rgba(0,0,0,0.7)',
+          border: '1px solid var(--mint-dim)',
+          cursor: 'pointer',
+        }}
+      >
+        ×
+      </button>
+
+      {/* Left column — title block. Anchored past the 300px navigator on
+          desktop; on mobile the navigator is hidden, so a media-query
+          override (.ndo-left) snaps it back to the left margin. */}
       <div
-        className="pointer-events-auto absolute z-10 px-6 md:px-0"
+        className="ndo-left pointer-events-auto absolute z-10 px-6 md:px-0"
         style={{
           left: 'clamp(24px, 24vw, 340px)',
           top: '34%',
@@ -367,9 +399,14 @@ export default function NodeDetailOverlay({
         )}
       </div>
 
-      {/* Mobile stacked layout — callouts under the headline */}
-      <div className="pointer-events-auto absolute inset-x-6 z-10 mt-4 flex flex-col gap-6 md:hidden"
-           style={{ top: 'calc(38% + 320px)', bottom: 120 }}>
+      {/* Mobile stacked layout — callouts under the headline. The
+          .ndo-stack media-query override pulls this up to land just
+          below the action buttons and makes it scrollable so all 5
+          callouts + notes are reachable. */}
+      <div
+        className="ndo-stack pointer-events-auto absolute inset-x-5 z-10 mt-4 flex flex-col gap-6 md:hidden"
+        style={{ top: 'calc(34% + 320px)', bottom: 120 }}
+      >
         <MyNotesEditor nodeId={node.id} />
         {callouts.map((c) => (
           <Callout
@@ -401,7 +438,7 @@ export default function NodeDetailOverlay({
       {/* Bottom-left: related */}
       {related.length > 0 && (
         <div
-          className="pointer-events-auto absolute z-10"
+          className="ndo-rel pointer-events-auto absolute z-10 hidden md:block"
           style={{
             left: 'clamp(24px, 24vw, 340px)',
             bottom: 36,

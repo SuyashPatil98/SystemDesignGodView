@@ -198,7 +198,7 @@ export default function GalaxyGraph({
           style={{ pointerEvents: 'none' }}
         >
           <div
-            className="no-select whitespace-nowrap px-2.5 py-1 font-mono"
+            className="no-select whitespace-nowrap px-2.5 py-1 font-mono hidden md:block"
             style={{
               fontSize: 11,
               letterSpacing: '0.04em',
