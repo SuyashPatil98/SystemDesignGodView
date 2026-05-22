@@ -6,18 +6,25 @@ const PALETTE_KEY = 'godview.palette.v1';
 const NOTES_KEY = 'godview.notes.v1';
 const OVERRIDES_KEY = 'godview.overrides.v1';
 const NAV_COLLAPSED_KEY = 'godview.navCollapsed.v1';
+const TOPBAR_COLLAPSED_KEY = 'godview.topbarCollapsed.v1';
 
-function loadNavCollapsed(): boolean {
+function loadBoolFlag(key: string): boolean {
   try {
-    return localStorage.getItem(NAV_COLLAPSED_KEY) === '1';
+    return localStorage.getItem(key) === '1';
   } catch {
     return false;
   }
 }
-function saveNavCollapsed(b: boolean) {
+function saveBoolFlag(key: string, b: boolean) {
   try {
-    localStorage.setItem(NAV_COLLAPSED_KEY, b ? '1' : '0');
+    localStorage.setItem(key, b ? '1' : '0');
   } catch {}
+}
+function loadNavCollapsed(): boolean {
+  return loadBoolFlag(NAV_COLLAPSED_KEY);
+}
+function saveNavCollapsed(b: boolean) {
+  saveBoolFlag(NAV_COLLAPSED_KEY, b);
 }
 
 // ───────────────────── Palette (Surface .01) ─────────────────────
@@ -220,6 +227,11 @@ interface State {
   // preference survives reloads.
   navigatorCollapsed: boolean;
 
+  // Top-bar collapsed state. When true the whole header is hidden and a
+  // small expand tab pokes from the top edge. Applies on both desktop
+  // and mobile. Persisted.
+  topbarCollapsed: boolean;
+
   select: (id: string | null) => void;
   hover: (id: string | null) => void;
   setMode: (m: Mode) => void;
@@ -281,6 +293,7 @@ interface State {
 
   setMindmap2DOpen: (b: boolean) => void;
   setNavigatorCollapsed: (b: boolean) => void;
+  setTopbarCollapsed: (b: boolean) => void;
 }
 
 const emptyFilters: Filters = {
@@ -325,6 +338,7 @@ export const useGraphStore = create<State>((set) => ({
   overrides: loadOverrides(),
   mindmap2DOpen: false,
   navigatorCollapsed: loadNavCollapsed(),
+  topbarCollapsed: loadBoolFlag(TOPBAR_COLLAPSED_KEY),
 
   select: (id) => set({ selectedId: id }),
   hover: (id) => set({ hoveredId: id }),
@@ -523,6 +537,10 @@ export const useGraphStore = create<State>((set) => ({
   setNavigatorCollapsed: (b) => {
     saveNavCollapsed(b);
     set({ navigatorCollapsed: b });
+  },
+  setTopbarCollapsed: (b) => {
+    saveBoolFlag(TOPBAR_COLLAPSED_KEY, b);
+    set({ topbarCollapsed: b });
   },
 
   conquer: (id) =>

@@ -35,6 +35,8 @@ export default function TopBar({ nodes, onPickNode }: Props) {
   const mindmap2DOpen = useGraphStore((s) => s.mindmap2DOpen);
   const setMindmap2DOpen = useGraphStore((s) => s.setMindmap2DOpen);
   const navigatorCollapsed = useGraphStore((s) => s.navigatorCollapsed);
+  const topbarCollapsed = useGraphStore((s) => s.topbarCollapsed);
+  const setTopbarCollapsed = useGraphStore((s) => s.setTopbarCollapsed);
 
   const total = nodes.filter((n) => n.kind !== 'domain').length;
   const done = nodes.filter(
@@ -48,6 +50,32 @@ export default function TopBar({ nodes, onPickNode }: Props) {
   const desktopCols = navigatorCollapsed
     ? 'md:grid-cols-[auto_1fr_auto]'
     : 'md:grid-cols-[300px_1fr_auto]';
+
+  // Collapsed state — small ▾ tab at top-center brings the bar back.
+  // Sits at z-30 (above the navigator z-25 and any in-scene Html label).
+  if (topbarCollapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setTopbarCollapsed(false)}
+        aria-label="Show top bar"
+        title="Show top bar"
+        className="pointer-events-auto absolute left-1/2 top-0 z-30 flex items-center justify-center font-mono uppercase transition-colors -translate-x-1/2"
+        style={{
+          width: 56,
+          height: 18,
+          fontSize: 11,
+          color: ACCENT,
+          background: 'rgba(0,0,0,0.78)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderTop: 'none',
+          cursor: 'pointer',
+        }}
+      >
+        ▾
+      </button>
+    );
+  }
 
   return (
     <header
@@ -194,6 +222,34 @@ export default function TopBar({ nodes, onPickNode }: Props) {
         <PaletteToggle active={palette} onChange={setPalette} />
         <ConquestCounter done={done} total={total} />
       </div>
+
+      {/* Collapse tab — small ▴ pill hanging off the bottom edge of the
+          bar, centered horizontally. Click hides the whole header; a
+          matching ▾ tab at top-center brings it back. */}
+      <button
+        type="button"
+        onClick={() => setTopbarCollapsed(true)}
+        aria-label="Hide top bar"
+        title="Hide top bar"
+        className="absolute left-1/2 -bottom-[18px] -translate-x-1/2 flex items-center justify-center font-mono transition-colors"
+        style={{
+          width: 56,
+          height: 18,
+          fontSize: 11,
+          color: 'rgba(255,255,255,0.55)',
+          background: 'rgba(0,0,0,0.78)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderTop: 'none',
+          cursor: 'pointer',
+          zIndex: 1,
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = ACCENT)}
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')
+        }
+      >
+        ▴
+      </button>
     </header>
   );
 }
