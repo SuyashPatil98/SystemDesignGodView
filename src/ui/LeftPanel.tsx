@@ -157,7 +157,12 @@ export default function LeftPanel({
 
   return (
     <aside
-      className={`pointer-events-auto absolute top-[64px] bottom-0 z-10
+      // z-[25] sits above any drei <Html> label inside the canvas
+      // (ClusterLabels max out at z 12, domain labels at 11, LOD labels at 8)
+      // so cluster names like 'DEEP LEARNING' can't bleed through the
+      // mobile menu's translucent background. Stays below NodeDetailOverlay
+      // (z-30) and the 2D map (z-40).
+      className={`pointer-events-auto absolute top-[64px] bottom-0 z-[25]
                   flex flex-col overflow-hidden font-sans
                   md:top-[92px] md:w-[300px]
                   ${mobileMenuOpen ? 'left-0 right-0 md:right-auto' : 'hidden md:flex'}
