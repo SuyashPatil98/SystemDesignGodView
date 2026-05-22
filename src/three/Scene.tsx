@@ -48,14 +48,14 @@ export default function Scene(props: Props) {
 
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={1.3}
-          luminanceThreshold={0.08}
-          luminanceSmoothing={0.7}
+          intensity={0.75}
+          luminanceThreshold={0.22}
+          luminanceSmoothing={0.6}
           mipmapBlur
-          radius={0.8}
+          radius={0.65}
         />
         <ChromaticAberration
-          offset={new THREE.Vector2(0.0008, 0.0008)}
+          offset={new THREE.Vector2(0.00035, 0.00035)}
           radialModulation={false}
           modulationOffset={0}
         />

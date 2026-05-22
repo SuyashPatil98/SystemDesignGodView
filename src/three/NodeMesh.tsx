@@ -93,10 +93,16 @@ const FRAGMENT_SHADER = /* glsl */ `
 
   void main() {
     vec4 tex = texture2D(uSprite, gl_PointCoord);
-    if (tex.a < 0.02) discard;
-    float a = tex.a * vBright * uOpacity * uGlobalAlpha;
-    vec3 hot = mix(uColor, vec3(1.0), pow(vBright, 4.0) * 0.65);
-    gl_FragColor = vec4(hot * vBright * 2.2, a);
+    if (tex.a < 0.04) discard;
+    // pow(...,1.6) crushes the gradient so the disc has a tight hot
+    // core and a sharper drop-off — pips read as defined points
+    // instead of soft fuzz that bloom turns into chromatic squares.
+    float aShape = pow(tex.a, 1.6);
+    float a = aShape * vBright * uOpacity * uGlobalAlpha;
+    vec3 hot = mix(uColor, vec3(1.0), pow(vBright, 4.0) * 0.55);
+    // 2.2 was blowing past the bloom threshold and rainbow-fringing.
+    // 1.25 keeps them bright but stays inside the bloom envelope.
+    gl_FragColor = vec4(hot * vBright * 1.25, a);
   }
 `;
 
@@ -270,12 +276,13 @@ export default function NodeMesh({
     [nodes],
   );
   // Base (target) size per node kind. Pip size lerps toward this target
-  // whenever the node becomes visible; lerps to 0 when hidden. Bumped from
-  // 5.5 / 3.5 / 2.5 → 7.5 / 5.0 / 3.6 so subdomain anchors read clearly
-  // through the thinned haze and concepts/leaves are picked out as bright
-  // points rather than blending into the cloud.
+  // whenever the node becomes visible; lerps to 0 when hidden. Settled at
+  // 5.0 / 3.6 / 2.8 — the prior 7.5/5.0/3.6 push combined with the 2.2×
+  // shader boost rendered subdomain pips as fuzzy chromatic squares once
+  // bloom got hold of them. With the sharper falloff in the fragment
+  // shader these sizes still read as defined points.
   const pipBaseSize = (kind: GNode['kind']) =>
-    kind === 'subdomain' ? 7.5 : kind === 'concept' ? 5.0 : 3.6;
+    kind === 'subdomain' ? 5.0 : kind === 'concept' ? 3.6 : 2.8;
 
   const pipGeometry = useMemo(() => {
     const positions = new Float32Array(pipNodes.length * 3);
