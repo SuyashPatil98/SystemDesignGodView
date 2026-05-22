@@ -163,7 +163,12 @@ export default function LeftPanel({
                   ${mobileMenuOpen ? 'left-0 right-0 md:right-auto' : 'hidden md:flex'}
                   md:left-0`}
       style={{
-        background: '#000',
+        // Solid black on desktop (the navigator is a dedicated column);
+        // translucent + frosted on mobile so the galaxy stays visible
+        // through the menu as a soft blurred backdrop.
+        background: mobileMenuOpen ? 'rgba(0,0,0,0.55)' : '#000',
+        backdropFilter: mobileMenuOpen ? 'blur(14px)' : 'none',
+        WebkitBackdropFilter: mobileMenuOpen ? 'blur(14px)' : 'none',
         borderRight: '1px solid rgba(255,255,255,0.04)',
       }}
     >

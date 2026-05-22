@@ -46,7 +46,15 @@ export default function TopBar({ nodes, onPickNode }: Props) {
                  grid items-center gap-8
                  grid-cols-[1fr_auto] md:grid-cols-[300px_1fr_auto]
                  border-b px-5 py-4 md:px-10 md:py-5"
-      style={{ borderColor: 'rgba(255,255,255,0.05)', background: '#000' }}
+      style={{
+        borderColor: 'rgba(255,255,255,0.05)',
+        // Translucent + frosted when the mobile menu is open so the galaxy
+        // shows through across the whole top area (matches the menu's
+        // backdrop blur). Solid black otherwise.
+        background: mobileMenuOpen ? 'rgba(0,0,0,0.55)' : '#000',
+        backdropFilter: mobileMenuOpen ? 'blur(14px)' : 'none',
+        WebkitBackdropFilter: mobileMenuOpen ? 'blur(14px)' : 'none',
+      }}
     >
       {/* ── Wordmark column ────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
