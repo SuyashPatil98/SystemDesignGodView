@@ -5,7 +5,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
+        serif: ['Instrument Serif', 'Georgia', 'serif'],
         mono: ['JetBrains Mono', 'Menlo', 'monospace'],
       },
       colors: {
@@ -16,12 +17,12 @@ export default {
           700: '#161c33',
           600: '#1f2742',
         },
+        // Single-accent palette. --mint is rebound at runtime; these tokens
+        // give Tailwind utilities a fixed value if a component opts out of
+        // the variable for some reason.
         accent: {
-          cyan: '#22d3ee',
-          violet: '#a78bfa',
-          rose: '#fb7185',
-          amber: '#fbbf24',
-          emerald: '#34d399',
+          mint: '#5EEAB7',
+          iris: '#B5A0FF',
         },
       },
       keyframes: {

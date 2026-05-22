@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { useGraphStore } from '../store/useGraphStore';
 import type { GEdge } from '../data/schema';
 import type { Positioned } from './layout';
 
@@ -22,15 +23,19 @@ const SPARKS_PER_EDGE = 1;
 
 interface SparkData {
   curve: THREE.QuadraticBezierCurve3;
-  color: THREE.Color;
   phase: number;
 }
 
-export default function EdgeFlow({ edges, layout, conquered }: Props) {
+export default function EdgeFlow({ edges, layout }: Props) {
+  const palette = useGraphStore((s) => s.palette);
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tmpCol = useMemo(() => new THREE.Color(), []);
-  const gold = useMemo(() => new THREE.Color('#fde68a'), []);
+
+  const accent = useMemo(
+    () => new THREE.Color(palette === 'mint' ? '#5EEAB7' : '#B5A0FF'),
+    [palette],
+  );
 
   const sparks = useMemo<SparkData[]>(() => {
     const out: SparkData[] = [];
@@ -40,23 +45,16 @@ export default function EdgeFlow({ edges, layout, conquered }: Props) {
       const bPos = layout.get(e.target)?.position;
       if (!aPos || !bPos) continue;
       // Parent edges are emitted as source=child, target=parent.
-      // We want sparks flowing outward, parent → child, so child is `a`.
       const childPos = aPos;
       const parentPos = bPos;
-      const childCol = layout.get(e.source)?.color.clone() ?? new THREE.Color('#ffffff');
 
       const mid = childPos.clone().add(parentPos).multiplyScalar(0.5);
       const outward = mid.clone().normalize();
       const ctrl = mid.clone().add(outward.multiplyScalar(1.2));
-      // Curve is parent → child (so u=0 is at parent, u=1 is at child).
       const curve = new THREE.QuadraticBezierCurve3(parentPos, ctrl, childPos);
 
       for (let s = 0; s < SPARKS_PER_EDGE; s++) {
-        out.push({
-          curve,
-          color: childCol.clone(),
-          phase: Math.random(),
-        });
+        out.push({ curve, phase: Math.random() });
       }
     }
     return out;
@@ -86,7 +84,7 @@ export default function EdgeFlow({ edges, layout, conquered }: Props) {
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
 
-      tmpCol.copy(sp.color).multiplyScalar(1.6 * fade);
+      tmpCol.copy(accent).multiplyScalar(1.6 * fade);
       mesh.setColorAt(i, tmpCol);
     }
     mesh.instanceMatrix.needsUpdate = true;

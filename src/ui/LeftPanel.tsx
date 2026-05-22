@@ -1,12 +1,14 @@
-import { useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Filter, RotateCcw, Sparkles, Boxes, Network, AlertTriangle, Gauge, Layers, Wrench, Crown, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
-import GlassPanel from './primitives/GlassPanel';
-import Chip from './primitives/Chip';
-import Section from './primitives/Section';
+import { useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import { useGraphStore } from '../store/useGraphStore';
-import type { Domain, Difficulty, Layer, LearningPath, ProjectIdea, Tradeoff, GNode } from '../data/schema';
-import { domainColor } from '../three/layout';
+import type {
+  Domain,
+  Difficulty,
+  Layer,
+  LearningPath,
+  ProjectIdea,
+  Tradeoff,
+  GNode,
+} from '../data/schema';
 
 interface Props {
   domains: Domain[];
@@ -18,10 +20,31 @@ interface Props {
   metricNodes: GNode[];
   patternNodes: GNode[];
   toolNodes: GNode[];
+  // Selecting from the navigator must focus the camera too — otherwise
+  // clicking a domain row silently selects without moving the scene, which
+  // reads as 'nothing happened'. App.tsx wraps store.select with the
+  // camera-focus call; pass that wrapper in here.
+  onPick: (id: string) => void;
 }
 
-const difficulties: Difficulty[] = ['beginner', 'intermediate', 'advanced', 'expert'];
-const layers: Layer[] = ['conceptual', 'architectural', 'implementation', 'operational', 'optimization'];
+const ACCENT = 'var(--mint)';
+const ACCENT_DIM = 'var(--mint-dim)';
+
+const difficulties: Difficulty[] = [
+  'beginner',
+  'intermediate',
+  'advanced',
+  'expert',
+];
+const layers: Layer[] = [
+  'conceptual',
+  'architectural',
+  'implementation',
+  'operational',
+  'optimization',
+];
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default function LeftPanel({
   domains,
@@ -33,12 +56,14 @@ export default function LeftPanel({
   metricNodes,
   patternNodes,
   toolNodes,
+  onPick,
 }: Props) {
   const mode = useGraphStore((s) => s.mode);
   const filters = useGraphStore((s) => s.filters);
   const activePathId = useGraphStore((s) => s.activePathId);
   const activeProjectId = useGraphStore((s) => s.activeProjectId);
   const activeTradeoffId = useGraphStore((s) => s.activeTradeoffId);
+
   const toggleDomain = useGraphStore((s) => s.toggleDomainFilter);
   const toggleDifficulty = useGraphStore((s) => s.toggleDifficulty);
   const toggleLayer = useGraphStore((s) => s.toggleLayer);
@@ -54,13 +79,17 @@ export default function LeftPanel({
   const showOnlyConquered = useGraphStore((s) => s.showOnlyConquered);
   const showOnlyUnconquered = useGraphStore((s) => s.showOnlyUnconquered);
   const setShowOnlyConquered = useGraphStore((s) => s.setShowOnlyConquered);
-  const setShowOnlyUnconquered = useGraphStore((s) => s.setShowOnlyUnconquered);
+  const setShowOnlyUnconquered = useGraphStore(
+    (s) => s.setShowOnlyUnconquered,
+  );
   const clearConquered = useGraphStore((s) => s.clearConquered);
   const openQuiz = useGraphStore((s) => s.openQuiz);
+  const userNotes = useGraphStore((s) => s.userNotes);
+  const clearAllNotes = useGraphStore((s) => s.clearAllNotes);
+  const replaceAllNotes = useGraphStore((s) => s.replaceAllNotes);
 
   const expandedDomainIds = useGraphStore((s) => s.expandedDomainIds);
   const expandedSubdomainIds = useGraphStore((s) => s.expandedSubdomainIds);
-  const toggleDomainExpanded = useGraphStore((s) => s.toggleDomainExpanded);
   const expandAll = useGraphStore((s) => s.expandAll);
   const collapseAll = useGraphStore((s) => s.collapseAll);
   const mobileMenuOpen = useGraphStore((s) => s.mobileMenuOpen);
@@ -74,7 +103,7 @@ export default function LeftPanel({
     showOnlyConquered ||
     showOnlyUnconquered;
 
-  // Per-domain conquest stats.
+  // ─── derived stats ───
   const domainStats = useMemo(() => {
     const map = new Map<string, { total: number; done: number }>();
     for (const n of allNodes) {
@@ -85,6 +114,17 @@ export default function LeftPanel({
       map.set(n.domainId, s);
     }
     return map;
+  }, [allNodes, conquered]);
+
+  const { done, total } = useMemo(() => {
+    let d = 0;
+    let t = 0;
+    for (const n of allNodes) {
+      if (n.kind === 'domain') continue;
+      t++;
+      if (conquered.has(n.id)) d++;
+    }
+    return { done: d, total: t };
   }, [allNodes, conquered]);
 
   const modeListNodes = useMemo(() => {
@@ -102,329 +142,847 @@ export default function LeftPanel({
     }
   }, [mode, failureNodes, metricNodes, patternNodes, toolNodes]);
 
+  // Helpers for expand/collapse.
+  const onExpandAll = () => {
+    const subIds = allNodes
+      .filter((n) => n.kind === 'subdomain')
+      .map((n) => n.id);
+    expandAll(domains.map((d) => d.id), subIds);
+  };
+
+  const isAllCollapsed =
+    expandedDomainIds.size === 0 && expandedSubdomainIds.size === 0;
+
   return (
-    <GlassPanel
-      className={`pointer-events-auto absolute top-[68px] bottom-5 z-10 flex flex-col transition-all duration-200
-        sm:left-5 sm:w-[300px]
-        ${mobileMenuOpen ? 'left-3 right-3 sm:right-auto' : 'hidden sm:flex'}
-      `}
+    <aside
+      className={`pointer-events-auto absolute top-[64px] bottom-0 z-10
+                  flex flex-col overflow-hidden font-sans
+                  md:top-[92px] md:w-[300px]
+                  ${mobileMenuOpen ? 'left-0 right-0 md:right-auto' : 'hidden md:flex'}
+                  md:left-0`}
+      style={{
+        background: '#000',
+        borderRight: '1px solid rgba(255,255,255,0.04)',
+      }}
     >
-      <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Filter size={14} className="text-cyan-300" />
-          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
-            Navigator
-          </span>
+      <div className="flex-1 overflow-y-auto px-8 py-9">
+        <SectionHead n=".N1" label="NAVIGATOR" />
+
+        {/* ── VIEW ─────────────────────────────────────────── */}
+        <SectionHead n=".N2" label="VIEW" top={28} />
+        <TextRow>
+          <SerifLink onClick={onExpandAll}>Expand all</SerifLink>
+          <Dot />
+          <SerifLink muted={isAllCollapsed} onClick={collapseAll}>
+            Collapse
+          </SerifLink>
+        </TextRow>
+
+        {/* ── CONQUEST ─────────────────────────────────────── */}
+        <SectionHead n=".N3" label="CONQUEST" top={28} active />
+        <ConquestBlock done={done} total={total} />
+        <TextRow top={12}>
+          <Tag
+            active={showOnlyConquered}
+            onClick={() => setShowOnlyConquered(!showOnlyConquered)}
+          >
+            Show conquered
+          </Tag>
+          <Dot />
+          <Tag
+            active={showOnlyUnconquered}
+            onClick={() => setShowOnlyUnconquered(!showOnlyUnconquered)}
+          >
+            Only unconquered
+          </Tag>
+        </TextRow>
+
+        <DomainList
+          domains={domains}
+          stats={domainStats}
+          activeFilterIds={filters.domainIds}
+          onToggleFilter={toggleDomain}
+          onPick={onPick}
+        />
+
+        <button
+          onClick={() => openQuiz(null)}
+          className="mt-6 block w-full py-2 text-center font-mono uppercase transition-colors"
+          style={{
+            fontSize: 10,
+            letterSpacing: '0.22em',
+            color: ACCENT,
+            borderTop: `1px solid ${ACCENT_DIM}`,
+            borderBottom: `1px solid ${ACCENT_DIM}`,
+          }}
+        >
+          QUIZ ME →
+        </button>
+
+        {/* ── FILTERS ──────────────────────────────────────── */}
+        <SectionHead n=".N4" label="FILTERS" top={28} />
+
+        <Eyebrow top={12}>DIFFICULTY</Eyebrow>
+        <TextRow>
+          {difficulties.map((d, i) => (
+            <span key={d}>
+              <Tag
+                active={filters.difficulty.has(d)}
+                onClick={() => toggleDifficulty(d)}
+              >
+                {cap(d)}
+              </Tag>
+              {i < difficulties.length - 1 && <Dot />}
+            </span>
+          ))}
+        </TextRow>
+
+        <Eyebrow top={14}>LAYER</Eyebrow>
+        <TextRow>
+          {layers.map((l, i) => (
+            <span key={l}>
+              <Tag
+                active={filters.layer.has(l)}
+                onClick={() => toggleLayer(l)}
+              >
+                {cap(l)}
+              </Tag>
+              {i < layers.length - 1 && <Dot />}
+            </span>
+          ))}
+        </TextRow>
+
+        <Eyebrow top={14}>RELEVANCE</Eyebrow>
+        <div className="mt-2 flex flex-col gap-2">
+          <RelevanceLine
+            label="Interview"
+            value={filters.minInterview}
+            onChange={setMinInterview}
+          />
+          <RelevanceLine
+            label="Production"
+            value={filters.minProduction}
+            onChange={setMinProduction}
+          />
         </div>
+
         {filtersActive && (
-          <button
+          <SerifLink
+            muted
+            className="mt-5 block"
             onClick={() => {
               resetFilters();
               setShowOnlyConquered(false);
               setShowOnlyUnconquered(false);
             }}
-            className="flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[10px] text-slate-300 hover:bg-white/5"
           >
-            <RotateCcw size={10} />
-            Reset
-          </button>
+            Reset filters
+          </SerifLink>
         )}
-      </div>
 
-      <div className="flex-1 space-y-1 overflow-y-auto px-4 py-2">
-        {/* Expand / collapse controls — always at top */}
-        <Section title="View" defaultOpen>
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-1.5">
-              <Chip
-                tone="violet"
-                onClick={() => {
-                  const subIds = allNodes
-                    .filter((n) => n.kind === 'subdomain')
-                    .map((n) => n.id);
-                  expandAll(domains.map((d) => d.id), subIds);
+        {conquered.size > 0 && (
+          <SerifLink
+            muted
+            className="mt-1 block"
+            onClick={clearConquered}
+          >
+            Reset conquest
+          </SerifLink>
+        )}
+
+        {/* ── NOTES (personal annotations) ─────────────────── */}
+        <SectionHead n=".N5" label="NOTES" top={28} />
+        <NotesIO
+          count={userNotes.size}
+          onExport={() => downloadNotes(userNotes)}
+          onImport={(entries) => replaceAllNotes(entries)}
+          onClear={clearAllNotes}
+        />
+
+        {/* ── Mode-specific lists (conditional) ────────────── */}
+        {mode === 'learning-path' && paths.length > 0 && (
+          <ModeList
+            n=".N5"
+            label="PATHS"
+            items={paths.map((p) => ({
+              id: p.id,
+              title: p.name,
+              caption: p.description,
+            }))}
+            activeId={activePathId}
+            onPick={(id) =>
+              setActivePath(activePathId === id ? null : id)
+            }
+          />
+        )}
+        {mode === 'project' && projects.length > 0 && (
+          <ModeList
+            n=".N5"
+            label="PROJECTS"
+            items={projects.map((p) => ({
+              id: p.id,
+              title: p.name,
+              caption: p.oneLiner,
+            }))}
+            activeId={activeProjectId}
+            onPick={(id) =>
+              setActiveProject(activeProjectId === id ? null : id)
+            }
+          />
+        )}
+        {mode === 'tradeoff' && tradeoffs.length > 0 && (
+          <ModeList
+            n=".N5"
+            label="TRADEOFFS"
+            items={tradeoffs.map((t) => ({
+              id: t.id,
+              title: t.name,
+              caption: t.axis,
+            }))}
+            activeId={activeTradeoffId}
+            onPick={(id) =>
+              setActiveTradeoff(activeTradeoffId === id ? null : id)
+            }
+          />
+        )}
+        {(mode === 'failure-mode' ||
+          mode === 'metric' ||
+          mode === 'pattern' ||
+          mode === 'tool') &&
+          modeListNodes.length > 0 && (
+            <ModeList
+              n=".N5"
+              label={
+                mode === 'failure-mode'
+                  ? 'FAILURES'
+                  : mode === 'metric'
+                  ? 'METRICS'
+                  : mode === 'pattern'
+                  ? 'PATTERNS'
+                  : 'TOOLS'
+              }
+              items={modeListNodes.map((n) => ({
+                id: n.id,
+                title: n.name,
+                caption: n.shortExplanation,
+              }))}
+              activeId={null}
+              onPick={onPick}
+            />
+          )}
+      </div>
+    </aside>
+  );
+}
+
+// ════════════ Inline subcomponents ═══════════════════════════════════════
+
+function SectionHead({
+  n,
+  label,
+  top = 0,
+  active = false,
+}: {
+  n: string;
+  label: string;
+  top?: number;
+  active?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-baseline gap-2 pb-1.5"
+      style={{
+        marginTop: top,
+        borderBottom: `1px solid ${active ? ACCENT_DIM : 'rgba(255,255,255,0.07)'}`,
+      }}
+    >
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 8,
+          letterSpacing: '0.22em',
+          color: 'rgba(255,255,255,0.3)',
+        }}
+      >
+        {n}
+      </span>
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 10,
+          letterSpacing: '0.28em',
+          color: active ? ACCENT : 'rgba(255,255,255,0.7)',
+        }}
+      >
+        {label}
+      </span>
+      {active && (
+        <span
+          className="ml-auto"
+          style={{
+            width: 4,
+            height: 4,
+            borderRadius: '50%',
+            background: ACCENT,
+            boxShadow: `0 0 6px ${ACCENT}`,
+            alignSelf: 'center',
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Eyebrow({
+  children,
+  top = 0,
+}: {
+  children: ReactNode;
+  top?: number;
+}) {
+  return (
+    <div
+      className="font-mono"
+      style={{
+        marginTop: top,
+        marginBottom: 5,
+        fontSize: 8,
+        letterSpacing: '0.32em',
+        color: 'rgba(255,255,255,0.42)',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SerifLink({
+  children,
+  muted,
+  onClick,
+  className,
+}: {
+  children: ReactNode;
+  muted?: boolean;
+  onClick?: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`font-serif italic transition-colors ${className ?? ''}`}
+      style={{
+        fontSize: 13,
+        letterSpacing: '0.01em',
+        color: muted ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.75)',
+        background: 'transparent',
+        textAlign: 'left',
+        cursor: 'pointer',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.color = '#fff';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.color = muted
+          ? 'rgba(255,255,255,0.4)'
+          : 'rgba(255,255,255,0.75)';
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Tag({
+  children,
+  active,
+  onClick,
+}: {
+  children: ReactNode;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="font-sans uppercase whitespace-nowrap transition-colors"
+      style={{
+        fontSize: 10,
+        letterSpacing: '0.16em',
+        color: active ? ACCENT : 'rgba(255,255,255,0.55)',
+        background: 'transparent',
+        cursor: 'pointer',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.color = '#fff';
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.color = 'rgba(255,255,255,0.55)';
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Dot() {
+  return (
+    <span
+      style={{
+        color: 'rgba(255,255,255,0.18)',
+        margin: '0 7px',
+      }}
+    >
+      ·
+    </span>
+  );
+}
+
+function TextRow({
+  children,
+  top = 8,
+}: {
+  children: ReactNode;
+  top?: number;
+}) {
+  return (
+    <div
+      className="flex flex-wrap items-baseline"
+      style={{ marginTop: top, fontSize: 13 }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ConquestBlock({ done, total }: { done: number; total: number }) {
+  const pct = total > 0 ? done / total : 0;
+  const pctText = total > 0 ? (pct * 100).toFixed(1) : '0.0';
+  const fmt = (n: number) => String(n).padStart(3, '0');
+  return (
+    <div className="mt-3.5">
+      <div
+        className="flex items-baseline font-mono"
+        style={{ fontSize: 26, letterSpacing: '0.06em' }}
+      >
+        <span style={{ color: ACCENT }}>{fmt(done)}</span>
+        <span
+          style={{
+            color: 'rgba(255,255,255,0.22)',
+            fontSize: 18,
+            margin: '0 6px',
+          }}
+        >
+          /
+        </span>
+        <span style={{ color: 'rgba(255,255,255,0.55)' }}>{fmt(total)}</span>
+      </div>
+      <div
+        className="mt-1 font-mono"
+        style={{
+          fontSize: 8,
+          letterSpacing: '0.28em',
+          color: 'rgba(255,255,255,0.4)',
+        }}
+      >
+        NODES CONQUERED <span style={{ color: ACCENT }}>·</span> {pctText}%
+      </div>
+      <div
+        className="relative mt-2.5"
+        style={{
+          height: 1,
+          width: '100%',
+          background: 'rgba(255,255,255,0.08)',
+        }}
+      >
+        <div
+          className="absolute left-0 top-0 h-full transition-[width] duration-500"
+          style={{
+            width: `${pct * 100}%`,
+            background: ACCENT,
+            boxShadow: `0 0 6px ${ACCENT}`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DomainList({
+  domains,
+  stats,
+  activeFilterIds,
+  onToggleFilter,
+  onPick,
+}: {
+  domains: Domain[];
+  stats: Map<string, { total: number; done: number }>;
+  activeFilterIds: Set<string>;
+  onToggleFilter: (id: string) => void;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div className="mt-6 flex flex-col gap-1.5">
+      <div
+        className="font-mono pb-1"
+        style={{
+          fontSize: 8,
+          letterSpacing: '0.22em',
+          color: 'rgba(255,255,255,0.35)',
+        }}
+      >
+        CLICK A DOMAIN TO ENTER →
+      </div>
+      {domains.map((d) => {
+        const s = stats.get(d.id);
+        const total = s?.total ?? 0;
+        const done = s?.done ?? 0;
+        const pct = total > 0 ? done / total : 0;
+        const active = activeFilterIds.has(d.id);
+        const hasDone = done > 0;
+
+        const nameColor = active
+          ? ACCENT
+          : hasDone
+          ? 'rgba(255,255,255,0.92)'
+          : 'rgba(255,255,255,0.7)';
+        const fracColor = hasDone
+          ? ACCENT
+          : 'rgba(255,255,255,0.32)';
+
+        return (
+          <div
+            key={d.id}
+            className="group flex items-baseline gap-2 py-1"
+            style={{ background: 'transparent' }}
+          >
+            {/* Filter toggle — small dot on the left, hidden affordance */}
+            <button
+              type="button"
+              onClick={() => onToggleFilter(d.id)}
+              aria-label={`${active ? 'Clear' : 'Filter to'} ${d.name}`}
+              title={active ? 'Clear filter' : 'Filter to this domain'}
+              className="shrink-0 transition-colors"
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: '50%',
+                background: active ? ACCENT : 'transparent',
+                border: `1px solid ${active ? ACCENT : 'rgba(255,255,255,0.25)'}`,
+                cursor: 'pointer',
+                padding: 0,
+                alignSelf: 'center',
+              }}
+            />
+            {/* Primary action — navigate to this domain */}
+            <button
+              type="button"
+              onClick={() => onPick(d.id)}
+              className="flex-1 text-left transition-colors"
+              style={{
+                background: 'transparent',
+                cursor: 'pointer',
+                paddingRight: 6,
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.color = '#fff')
+              }
+              onMouseLeave={(e) => (e.currentTarget.style.color = '')}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span
+                  className="font-sans"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 400,
+                    letterSpacing: '0.01em',
+                    color: nameColor,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {d.name}
+                </span>
+                <span
+                  className="font-mono shrink-0"
+                  style={{
+                    fontSize: 9,
+                    letterSpacing: '0.08em',
+                    color: fracColor,
+                  }}
+                >
+                  {String(done).padStart(2, '0')}/{String(total).padStart(2, '0')}
+                </span>
+              </div>
+              <div
+                className="mt-1"
+                style={{
+                  height: 1,
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.05)',
                 }}
               >
-                <ChevronDown size={11} /> Expand all
-              </Chip>
-              <Chip
-                tone="slate"
-                onClick={collapseAll}
-                active={expandedDomainIds.size === 0 && expandedSubdomainIds.size === 0}
-              >
-                <ChevronUp size={11} /> Collapse all
-              </Chip>
-            </div>
-            <p className="text-[10px] leading-snug text-slate-500">
-              Click a domain to expand it. Click a subdomain to drill deeper. Use Isolate from the right panel to study a branch alone.
-            </p>
-          </div>
-        </Section>
-
-        {/* Conquest section */}
-        <Section title="Conquest" defaultOpen tone="warn">
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-1.5">
-              <Chip
-                tone="amber"
-                active={showOnlyConquered}
-                onClick={() => setShowOnlyConquered(!showOnlyConquered)}
-              >
-                <Crown size={11} /> Show conquered
-              </Chip>
-              <Chip
-                tone="slate"
-                active={showOnlyUnconquered}
-                onClick={() => setShowOnlyUnconquered(!showOnlyUnconquered)}
-              >
-                Show only unconquered
-              </Chip>
-            </div>
-
-            <div className="space-y-1">
-              {domains.map((d) => {
-                const s = domainStats.get(d.id);
-                const total = s?.total ?? 0;
-                const done = s?.done ?? 0;
-                const pct = total > 0 ? (done / total) * 100 : 0;
-                const col = domainColor(d.id);
-                return (
-                  <button
-                    key={d.id}
-                    onClick={() => toggleDomain(d.id)}
-                    className={`group flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left text-[11px] transition ${
-                      filters.domainIds.has(d.id)
-                        ? 'border-white/30 bg-white/[0.04]'
-                        : 'border-white/[0.04] hover:border-white/15'
-                    }`}
-                  >
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: col, boxShadow: `0 0 8px ${col}` }}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-slate-200">
-                      {d.name}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-1 w-12 overflow-hidden rounded-full bg-white/5">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{ width: `${pct}%`, background: col, boxShadow: `0 0 6px ${col}` }}
-                        />
-                      </div>
-                      <span className="font-mono text-[10px] text-slate-500 tabular-nums">
-                        {done}/{total}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => openQuiz(null)}
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-violet-300/30 bg-violet-500/[0.08] px-2 py-2 text-[12px] font-semibold text-violet-100 hover:bg-violet-500/[0.16]"
-            >
-              <Sparkles size={12} /> Quiz me
+                <div
+                  className="h-full transition-[width] duration-300"
+                  style={{
+                    width: `${pct * 100}%`,
+                    background: ACCENT,
+                    opacity: 0.7,
+                  }}
+                />
+              </div>
             </button>
-
-            {conquered.size > 0 && (
-              <button
-                onClick={clearConquered}
-                className="w-full rounded-md border border-rose-300/20 px-2 py-1 text-[10px] text-rose-300/80 hover:bg-rose-500/[0.06]"
-              >
-                Reset all conquest progress
-              </button>
-            )}
           </div>
-        </Section>
+        );
+      })}
+    </div>
+  );
+}
 
-        {/* Mode-specific lists */}
-        <AnimatePresence>
-          {mode === 'learning-path' && (
-            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <Section title="Learning paths" defaultOpen count={paths.length}>
-                <ul className="space-y-1">
-                  {paths.map((p) => (
-                    <li key={p.id}>
-                      <button
-                        onClick={() => setActivePath(activePathId === p.id ? null : p.id)}
-                        className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                          activePathId === p.id
-                            ? 'border-violet-300/60 bg-violet-500/10 text-violet-100'
-                            : 'border-white/5 bg-white/[0.02] text-slate-200 hover:border-white/15'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Sparkles size={12} className="text-violet-300" />
-                          <span className="truncate text-[12px] font-semibold">{p.name}</span>
-                        </div>
-                        <div className="mt-1 line-clamp-2 text-[11px] text-slate-400">{p.description}</div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            </motion.div>
-          )}
-
-          {mode === 'project' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <Section title="Projects" defaultOpen count={projects.length}>
-                <ul className="space-y-1">
-                  {projects.map((p) => (
-                    <li key={p.id}>
-                      <button
-                        onClick={() => setActiveProject(activeProjectId === p.id ? null : p.id)}
-                        className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                          activeProjectId === p.id
-                            ? 'border-emerald-300/60 bg-emerald-500/10 text-emerald-100'
-                            : 'border-white/5 bg-white/[0.02] text-slate-200 hover:border-white/15'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Boxes size={12} className="text-emerald-300" />
-                          <span className="truncate text-[12px] font-semibold">{p.name}</span>
-                        </div>
-                        <div className="mt-1 line-clamp-2 text-[11px] text-slate-400">{p.oneLiner}</div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            </motion.div>
-          )}
-
-          {mode === 'tradeoff' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <Section title="Tradeoffs" defaultOpen count={tradeoffs.length}>
-                <ul className="space-y-1">
-                  {tradeoffs.map((t) => (
-                    <li key={t.id}>
-                      <button
-                        onClick={() => setActiveTradeoff(activeTradeoffId === t.id ? null : t.id)}
-                        className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                          activeTradeoffId === t.id
-                            ? 'border-rose-300/60 bg-rose-500/10 text-rose-100'
-                            : 'border-white/5 bg-white/[0.02] text-slate-200 hover:border-white/15'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Network size={12} className="text-rose-300" />
-                          <span className="truncate text-[12px] font-semibold">{t.name}</span>
-                        </div>
-                        <div className="mt-1 line-clamp-1 text-[11px] text-slate-400">{t.axis}</div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            </motion.div>
-          )}
-
-          {(mode === 'failure-mode' || mode === 'metric' || mode === 'pattern' || mode === 'tool') && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <Section
-                title={
-                  mode === 'failure-mode'
-                    ? 'Failure modes'
-                    : mode === 'metric'
-                    ? 'Metrics'
-                    : mode === 'pattern'
-                    ? 'Architecture patterns'
-                    : 'Tools'
-                }
-                defaultOpen
-                count={modeListNodes.length}
-              >
-                <ul className="space-y-1">
-                  {modeListNodes.map((n) => {
-                    const Icon =
-                      mode === 'failure-mode'
-                        ? AlertTriangle
-                        : mode === 'metric'
-                        ? Gauge
-                        : mode === 'pattern'
-                        ? Layers
-                        : Wrench;
-                    return (
-                      <li key={n.id}>
-                        <button
-                          onClick={() => select(n.id)}
-                          className="group flex w-full items-start gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-left hover:border-white/15"
-                        >
-                          <Icon size={12} className="mt-[3px] text-amber-300" />
-                          <div className="min-w-0">
-                            <div className="truncate text-[12px] font-medium text-slate-100">
-                              {n.name}
-                            </div>
-                            <div className="line-clamp-2 text-[10px] text-slate-400">
-                              {n.shortExplanation}
-                            </div>
-                          </div>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </Section>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <Section title="Difficulty" defaultOpen={false}>
-          <div className="flex flex-wrap gap-1.5">
-            {difficulties.map((d) => (
-              <Chip key={d} active={filters.difficulty.has(d)} tone="violet" onClick={() => toggleDifficulty(d)}>
-                {d}
-              </Chip>
-            ))}
-          </div>
-        </Section>
-
-        <Section title="Layer" defaultOpen={false}>
-          <div className="flex flex-wrap gap-1.5">
-            {layers.map((l) => (
-              <Chip key={l} active={filters.layer.has(l)} tone="emerald" onClick={() => toggleLayer(l)}>
-                {l}
-              </Chip>
-            ))}
-          </div>
-        </Section>
-
-        <Section title="Relevance" defaultOpen={false}>
-          <div className="space-y-2 text-[11px] text-slate-300">
-            <div>
-              <label className="flex items-center justify-between">
-                <span>Min interview value</span>
-                <span className="font-mono text-cyan-300">{filters.minInterview}</span>
-              </label>
-              <input
-                type="range"
-                min={1}
-                max={5}
-                value={filters.minInterview}
-                onChange={(e) => setMinInterview(parseInt(e.target.value, 10))}
-                className="mt-1 w-full accent-cyan-400"
-              />
-            </div>
-            <div>
-              <label className="flex items-center justify-between">
-                <span>Min production value</span>
-                <span className="font-mono text-violet-300">{filters.minProduction}</span>
-              </label>
-              <input
-                type="range"
-                min={1}
-                max={5}
-                value={filters.minProduction}
-                onChange={(e) => setMinProduction(parseInt(e.target.value, 10))}
-                className="mt-1 w-full accent-violet-400"
-              />
-            </div>
-          </div>
-        </Section>
+function RelevanceLine({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span
+        className="font-serif italic"
+        style={{
+          fontSize: 13,
+          color: 'rgba(255,255,255,0.7)',
+          flex: 1,
+        }}
+      >
+        {label}
+      </span>
+      <div className="flex gap-[2px]">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onChange(i === value ? 1 : i)}
+            aria-label={`${label} ≥ ${i}`}
+            style={{
+              width: 8,
+              height: 2,
+              background:
+                i <= value ? ACCENT : 'rgba(255,255,255,0.12)',
+              display: 'block',
+              cursor: 'pointer',
+              border: 'none',
+              padding: 0,
+            }}
+          />
+        ))}
       </div>
-    </GlassPanel>
+      <span
+        className="font-mono text-right"
+        style={{
+          fontSize: 9,
+          letterSpacing: '0.12em',
+          color: ACCENT,
+          width: 18,
+        }}
+      >
+        {value}+
+      </span>
+    </div>
+  );
+}
+
+interface ModeListItem {
+  id: string;
+  title: string;
+  caption?: string;
+}
+
+function ModeList({
+  n,
+  label,
+  items,
+  activeId,
+  onPick,
+}: {
+  n: string;
+  label: string;
+  items: ModeListItem[];
+  activeId: string | null;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <>
+      <SectionHead n={n} label={label} top={28} />
+      <ul className="mt-3 flex flex-col gap-2">
+        {items.map((it) => {
+          const isActive = it.id === activeId;
+          const itemStyle: CSSProperties = {
+            background: 'transparent',
+            borderLeft: `1px solid ${isActive ? ACCENT : 'rgba(255,255,255,0.06)'}`,
+            paddingLeft: 10,
+            cursor: 'pointer',
+          };
+          return (
+            <li key={it.id}>
+              <button
+                type="button"
+                onClick={() => onPick(it.id)}
+                className="block w-full py-1 text-left"
+                style={itemStyle}
+              >
+                <div
+                  className="font-serif italic"
+                  style={{
+                    fontSize: 13,
+                    color: isActive ? '#fff' : 'rgba(255,255,255,0.78)',
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  {it.title}
+                </div>
+                {it.caption && (
+                  <div
+                    className="font-mono"
+                    style={{
+                      marginTop: 2,
+                      fontSize: 9,
+                      letterSpacing: '0.06em',
+                      color: 'rgba(255,255,255,0.4)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {it.caption}
+                  </div>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
+// ── Notes export / import ───────────────────────────────────────────────
+function downloadNotes(notes: Map<string, string>) {
+  const obj: Record<string, string> = {};
+  for (const [k, v] of notes) obj[k] = v;
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  a.href = url;
+  a.download = `godview-notes-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function NotesIO({
+  count,
+  onExport,
+  onImport,
+  onClear,
+}: {
+  count: number;
+  onExport: () => void;
+  onImport: (entries: Record<string, string>) => void;
+  onClear: () => void;
+}) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  const triggerImport = () => fileRef.current?.click();
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const text = await f.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        setImportMsg('Invalid file');
+        return;
+      }
+      const entries: Record<string, string> = {};
+      let n = 0;
+      for (const k of Object.keys(parsed)) {
+        if (typeof parsed[k] === 'string' && parsed[k].trim()) {
+          entries[k] = parsed[k];
+          n++;
+        }
+      }
+      onImport(entries);
+      setImportMsg(`Imported ${n} notes`);
+      setTimeout(() => setImportMsg(null), 2400);
+    } catch {
+      setImportMsg('Could not read file');
+      setTimeout(() => setImportMsg(null), 2400);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className="mt-3 flex flex-col gap-2">
+      <div
+        className="font-mono"
+        style={{
+          fontSize: 9,
+          letterSpacing: '0.08em',
+          color: 'rgba(255,255,255,0.55)',
+        }}
+      >
+        <span style={{ color: 'var(--mint)' }}>
+          {String(count).padStart(2, '0')}
+        </span>{' '}
+        / SAVED LOCALLY
+      </div>
+      <TextRow top={2}>
+        <SerifLink onClick={onExport} muted={count === 0}>
+          Export →
+        </SerifLink>
+        <Dot />
+        <SerifLink onClick={triggerImport}>Import</SerifLink>
+        {count > 0 && (
+          <>
+            <Dot />
+            <SerifLink muted onClick={onClear}>
+              Reset
+            </SerifLink>
+          </>
+        )}
+      </TextRow>
+      {importMsg && (
+        <div
+          className="font-mono"
+          style={{
+            fontSize: 9,
+            letterSpacing: '0.16em',
+            color: 'var(--mint)',
+          }}
+        >
+          {importMsg}
+        </div>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json,.json"
+        style={{ display: 'none' }}
+        onChange={onFile}
+      />
+    </div>
   );
 }

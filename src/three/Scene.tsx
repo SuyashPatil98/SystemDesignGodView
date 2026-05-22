@@ -11,7 +11,6 @@ import * as THREE from 'three';
 import Starfield from './Starfield';
 import CameraRig from './CameraRig';
 import GalaxyGraph from './GalaxyGraph';
-import EnvSetup from './EnvSetup';
 import type { GNode, GEdge } from '../data/schema';
 import type { Positioned } from './layout';
 
@@ -39,15 +38,9 @@ export default function Scene(props: Props) {
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
     >
-      <color attach="background" args={['#03050b']} />
-      <fog attach="fog" args={['#03050b', 300, 620]} />
+      <color attach="background" args={['#000000']} />
+      <fog attach="fog" args={['#000000', 300, 620]} />
 
-      <ambientLight intensity={0.55} />
-      <pointLight position={[140, 80, 80]} intensity={0.6} color="#22d3ee" />
-      <pointLight position={[-110, -60, -100]} intensity={0.55} color="#f472b6" />
-      <pointLight position={[0, 120, 0]} intensity={0.4} color="#facc15" />
-
-      <EnvSetup />
       <Starfield />
       <GalaxyGraph {...props} />
 
@@ -55,11 +48,11 @@ export default function Scene(props: Props) {
 
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={2.0}
-          luminanceThreshold={0.03}
+          intensity={1.3}
+          luminanceThreshold={0.08}
           luminanceSmoothing={0.7}
           mipmapBlur
-          radius={0.9}
+          radius={0.8}
         />
         <ChromaticAberration
           offset={new THREE.Vector2(0.0008, 0.0008)}

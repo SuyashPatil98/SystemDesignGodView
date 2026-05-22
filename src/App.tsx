@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import Scene from './three/Scene';
 import TopBar from './ui/TopBar';
 import LeftPanel from './ui/LeftPanel';
-import RightPanel from './ui/RightPanel';
+import NodeDetailOverlay from './ui/NodeDetailOverlay';
 import ModeOverlay from './ui/ModeOverlay';
 import Minimap from './ui/Minimap';
 import KeyboardHints from './ui/KeyboardHints';
@@ -21,7 +21,7 @@ import { breadcrumbs as bcrumbs } from './lib/breadcrumbs';
 import { emphasizedIds } from './lib/modes';
 import { focusSubtreeIds } from './lib/subtree';
 import { Focus, X, MousePointerClick, MapPin } from 'lucide-react';
-import { getClusters, domainColor } from './three/layout';
+import { getClusters } from './three/layout';
 import OnboardingTour from './ui/OnboardingTour';
 import ComparePanel from './ui/ComparePanel';
 import QuizModal from './ui/QuizModal';
@@ -498,9 +498,10 @@ export default function App() {
         metricNodes={metricNodes}
         patternNodes={patternNodes}
         toolNodes={toolNodes}
+        onPick={handleSelect}
       />
 
-      <RightPanel
+      <NodeDetailOverlay
         nodes={nodeById}
         domains={domainById}
         breadcrumbs={breadcrumbs}
@@ -525,10 +526,45 @@ export default function App() {
       <KeyboardHints />
 
       {!hasInteracted && !focusedNode && (
-        <div className="pointer-events-none absolute left-1/2 top-[78px] z-20 -translate-x-1/2">
-          <div className="flex items-center gap-2 rounded-full border border-cyan-300/40 bg-ink-900/85 px-3.5 py-2 text-[12px] text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.35)] backdrop-blur animate-slow-pulse">
-            <MousePointerClick size={13} className="text-cyan-300" />
-            Click any <span className="font-semibold text-white">domain</span> to expand its branches
+        <div
+          className="pointer-events-none absolute z-20 hidden md:flex items-center gap-2"
+          style={{ left: 316, top: 140 }}
+        >
+          <div
+            className="font-mono uppercase"
+            style={{
+              fontSize: 16,
+              color: 'var(--mint)',
+              textShadow: '0 0 8px var(--mint-dim)',
+            }}
+          >
+            ←
+          </div>
+          <div
+            className="flex flex-col gap-1 px-3 py-2 font-mono uppercase"
+            style={{
+              fontSize: 9,
+              letterSpacing: '0.22em',
+              color: 'rgba(255,255,255,0.78)',
+              border: '1px solid var(--mint-dim)',
+              background: 'rgba(0,0,0,0.7)',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <MousePointerClick size={11} style={{ color: 'var(--mint)' }} />
+              Start here — pick a domain
+            </div>
+            <div
+              className="font-serif italic normal-case"
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.01em',
+                color: 'rgba(255,255,255,0.5)',
+              }}
+            >
+              or click any glowing point in the galaxy
+            </div>
           </div>
         </div>
       )}
@@ -541,18 +577,23 @@ export default function App() {
         const cluster = getClusters().find((c) =>
           c.domainIds.includes(nearestDomainId),
         );
-        const color = domainColor(nearestDomainId);
         return (
           <div className="pointer-events-none absolute left-1/2 top-[80px] z-10 -translate-x-1/2 select-none">
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-ink-900/55 px-3 py-1.5 text-[10px] uppercase tracking-[0.22em] backdrop-blur">
-              <MapPin size={11} style={{ color }} />
+            <div
+              className="flex items-center gap-2 border border-white/10 bg-black/55 px-3 py-1.5 font-mono uppercase backdrop-blur"
+              style={{ fontSize: 10, letterSpacing: '0.22em' }}
+            >
+              <MapPin size={11} style={{ color: 'var(--mint)' }} />
               {cluster && (
                 <>
-                  <span className="text-slate-400">{cluster.name}</span>
-                  <span className="text-slate-600">/</span>
+                  <span className="text-white/40">{cluster.name}</span>
+                  <span className="text-white/20">/</span>
                 </>
               )}
-              <span className="text-white" style={{ textShadow: `0 0 10px ${color}66` }}>
+              <span
+                className="text-white"
+                style={{ textShadow: '0 0 10px var(--mint-dim)' }}
+              >
                 {domain.name}
               </span>
             </div>
@@ -572,12 +613,21 @@ export default function App() {
         return (
           <button
             onClick={() => clearCompare()}
-            className="pointer-events-auto absolute bottom-5 right-5 z-20 flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-500/[0.08] px-3 py-1.5 text-[11px] text-emerald-100 shadow-[0_0_18px_rgba(52,211,153,0.25)] backdrop-blur md:bottom-auto md:top-[124px]"
+            className="pointer-events-auto absolute bottom-5 right-5 z-20 flex items-center gap-2 px-3 py-1.5 font-mono uppercase backdrop-blur md:bottom-auto md:top-[124px]"
+            style={{
+              fontSize: 10,
+              letterSpacing: '0.22em',
+              color: 'rgba(255,255,255,0.78)',
+              border: '1px solid var(--mint-dim)',
+              background: 'rgba(94,234,183,0.06)',
+            }}
           >
-            <span className="text-emerald-300">A:</span>
-            <span className="text-white">{a.name}</span>
-            <span className="text-slate-400">· shift-click another to compare</span>
-            <X size={11} className="text-slate-400" />
+            <span style={{ color: 'var(--mint)' }}>A:</span>
+            <span style={{ color: '#fff', textTransform: 'none', letterSpacing: '0.02em' }} className="font-serif italic">
+              {a.name}
+            </span>
+            <span style={{ color: 'rgba(255,255,255,0.4)' }}>· shift-click another</span>
+            <X size={11} style={{ color: 'rgba(255,255,255,0.45)' }} />
           </button>
         );
       })()}
@@ -585,22 +635,42 @@ export default function App() {
       {focusedNode && (
         <button
           onClick={() => setFocusedSubtree(null)}
-          className="pointer-events-auto absolute left-1/2 top-[78px] z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-500/[0.08] px-3.5 py-1.5 text-[11px] font-semibold text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.35)] backdrop-blur"
+          className="pointer-events-auto absolute left-1/2 top-[78px] z-20 flex -translate-x-1/2 items-center gap-2 px-3.5 py-1.5 font-mono uppercase backdrop-blur"
+          style={{
+            fontSize: 10,
+            letterSpacing: '0.22em',
+            color: 'rgba(255,255,255,0.85)',
+            border: '1px solid var(--mint)',
+            background: 'rgba(94,234,183,0.08)',
+            boxShadow: '0 0 22px rgba(94,234,183,0.18)',
+          }}
         >
-          <Focus size={12} />
-          Focused on <span className="text-white">{focusedNode.name}</span>
-          <span className="ml-1 inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-slate-300">
-            <X size={10} /> Esc to exit
+          <Focus size={12} style={{ color: 'var(--mint)' }} />
+          Focused on{' '}
+          <span
+            className="font-serif italic"
+            style={{
+              color: '#fff',
+              textTransform: 'none',
+              letterSpacing: '0.02em',
+            }}
+          >
+            {focusedNode.name}
+          </span>
+          <span
+            className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5"
+            style={{
+              fontSize: 9,
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.04)',
+              color: 'rgba(255,255,255,0.7)',
+            }}
+          >
+            <X size={10} /> Esc
           </span>
         </button>
       )}
 
-      <div className="pointer-events-none absolute bottom-1 left-1/2 z-10 -translate-x-1/2 hidden md:flex items-center gap-3 text-[10px] font-mono text-slate-600">
-        <span>{graph.nodes.length} nodes · {graph.edges.length} edges · {graph.domains.length} domains</span>
-        <span className="text-cyan-400/70">
-          expanded {expandedDomainIds.size}/{graph.domains.length} domains · {expandedSubdomainIds.size} subs
-        </span>
-      </div>
     </div>
   );
 }

@@ -1,7 +1,8 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { computeClusterNebulae } from './layout';
+import { useGraphStore } from '../store/useGraphStore';
 
 // Large soft glow clouds at each super-cluster centre — the 6 thematic
 // regions now feel like nebulae the domains float inside.
@@ -68,14 +69,12 @@ const FRAGMENT = /* glsl */ `
 
 function NebulaSprite({
   position,
-  color,
   scale,
   seed,
   baseOpacity,
   ambientOpacity,
 }: {
   position: THREE.Vector3;
-  color: THREE.Color;
   scale: number;
   seed: number;
   baseOpacity: number;
@@ -84,6 +83,7 @@ function NebulaSprite({
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.ShaderMaterial>(null);
   const { camera } = useThree();
+  const palette = useGraphStore((s) => s.palette);
 
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -92,7 +92,7 @@ function NebulaSprite({
       uniforms: {
         uTime: { value: 0 },
         uOpacity: { value: baseOpacity * ambientOpacity },
-        uColor: { value: color.clone() },
+        uColor: { value: new THREE.Color('#5EEAB7') },
         uSeed: { value: seed },
       },
       transparent: true,
@@ -101,7 +101,16 @@ function NebulaSprite({
     });
     // base/ambient updated via useFrame so we can transition smoothly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [color, seed]);
+  }, [seed]);
+
+  // Palette toggle wiring.
+  useEffect(() => {
+    const hex = palette === 'mint' ? '#5EEAB7' : '#B5A0FF';
+    (material.uniforms.uColor.value as THREE.Color).set(hex);
+  }, [palette, material]);
+
+  // Cleanup.
+  useEffect(() => () => material.dispose(), [material]);
 
   useFrame((_, delta) => {
     if (matRef.current) {
@@ -140,10 +149,9 @@ export default function ClusterNebulae({ ambientOpacity = 1 }: ClusterNebulaePro
         <NebulaSprite
           key={n.id}
           position={n.position}
-          color={n.color}
           scale={170 + i * 10}
           seed={i * 1.7 + 0.31}
-          baseOpacity={0.58}
+          baseOpacity={0.18}
           ambientOpacity={ambientOpacity}
         />
       ))}

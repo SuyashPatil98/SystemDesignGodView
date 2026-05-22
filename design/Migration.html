@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Migration Guide · Helios → Tech Galaxy</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --mint: #5EEAB7;
+    --mint-dim: rgba(94, 234, 183, 0.45);
+    --paper: #f6f3ee;
+    --ink: #1e1c17;
+    --rule: rgba(30, 28, 23, 0.1);
+    --muted: rgba(58, 53, 43, 0.62);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+  }
+
+  .page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 88px 64px 160px;
+  }
+
+  /* ─── Header ─────────────────────────────────────────────────────── */
+  header {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 36px;
+    margin-bottom: 56px;
+  }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    color: rgba(58, 53, 43, 0.5);
+    text-transform: uppercase;
+  }
+  .eyebrow .mint { color: #2e8362; }
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 72px;
+    line-height: 0.95;
+    color: var(--ink);
+    letter-spacing: 0.005em;
+    margin: 16px 0 18px;
+  }
+  h1 em {
+    font-style: italic;
+    color: #2e8362;
+  }
+  .lede {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 21px;
+    line-height: 1.4;
+    color: var(--muted);
+    max-width: 720px;
+    margin-bottom: 22px;
+  }
+  .credit {
+    margin-top: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    color: rgba(58, 53, 43, 0.5);
+  }
+  .credit .v { color: #2e8362; }
+
+  /* ─── Section ────────────────────────────────────────────────────── */
+  section {
+    margin: 64px 0;
+    padding-top: 16px;
+  }
+  section + section { border-top: 1px solid var(--rule); padding-top: 56px; }
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 46px;
+    line-height: 1;
+    color: var(--ink);
+    letter-spacing: 0;
+    margin: 8px 0 6px;
+  }
+  h2 .n {
+    font-family: 'JetBrains Mono', monospace;
+    font-style: normal;
+    font-size: 13px;
+    color: rgba(58, 53, 43, 0.4);
+    letter-spacing: 0.18em;
+    margin-right: 12px;
+    vertical-align: middle;
+  }
+  h2 .num { color: #2e8362; }
+  .sub {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 720px;
+    margin-bottom: 28px;
+  }
+
+  /* ─── Map row ────────────────────────────────────────────────────── */
+  .row {
+    display: grid;
+    grid-template-columns: 200px 1fr 100px;
+    gap: 28px;
+    padding: 18px 0;
+    border-bottom: 1px dashed var(--rule);
+    align-items: baseline;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .key {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: rgba(58, 53, 43, 0.7);
+    letter-spacing: 0.05em;
+  }
+  .row .val {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .row .status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-align: right;
+    text-transform: uppercase;
+  }
+  .status-ready { color: #2e8362; }
+  .status-port  { color: #8a6a2e; }
+  .status-delete{ color: #a3503b; }
+
+  /* ─── Diff block ─────────────────────────────────────────────────── */
+  .diff {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin: 22px 0 8px;
+  }
+  .diff > div {
+    padding: 18px 20px;
+    background: #fff;
+    border: 1px solid var(--rule);
+    border-radius: 1px;
+  }
+  .diff .remove {
+    background: linear-gradient(180deg, #fcf3f1 0%, #faecea 100%);
+    border-color: rgba(163, 80, 59, 0.2);
+  }
+  .diff .add {
+    background: linear-gradient(180deg, #effbf6 0%, #e6f7ef 100%);
+    border-color: rgba(46, 131, 98, 0.22);
+  }
+  .diff h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .diff .remove h4 { color: #a3503b; }
+  .diff .add h4    { color: #2e8362; }
+  .diff ul { margin: 0 0 0 16px; padding: 0; }
+  .diff li {
+    font-size: 13px;
+    line-height: 1.55;
+    margin-bottom: 6px;
+    color: var(--ink);
+  }
+  .diff li code { background: rgba(0,0,0,0.05); padding: 1px 4px; border-radius: 2px; }
+
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+  pre {
+    background: #1c1a14;
+    color: #e9e6df;
+    padding: 16px 18px;
+    border-radius: 1px;
+    overflow-x: auto;
+    line-height: 1.55;
+    margin: 18px 0;
+    border-left: 2px solid #2e8362;
+  }
+  pre .c { color: #6f6a5e; }
+  pre .k { color: #9bd6b5; }
+  pre .s { color: #d9c896; }
+  pre .n { color: #b9a8db; }
+
+  .ref {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+  .ref a {
+    color: #2e8362;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(46, 131, 98, 0.3);
+  }
+
+  /* ─── TOC ────────────────────────────────────────────────────────── */
+  .toc {
+    display: flex; flex-wrap: wrap; gap: 0;
+    margin: 24px 0 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 0;
+  }
+  .toc a {
+    flex: 1;
+    text-decoration: none;
+    color: rgba(58, 53, 43, 0.6);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    padding: 4px 0;
+    border-right: 1px solid var(--rule);
+    text-align: center;
+    transition: color 200ms;
+  }
+  .toc a:last-child { border-right: none; }
+  .toc a:hover { color: var(--ink); }
+  .toc a .n {
+    color: #2e8362; font-family: 'JetBrains Mono', monospace;
+    margin-right: 6px;
+  }
+
+  /* ─── Footer ─────────────────────────────────────────────────────── */
+  footer {
+    margin-top: 96px;
+    padding-top: 32px;
+    border-top: 1px solid var(--rule);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: rgba(58, 53, 43, 0.45);
+    letter-spacing: 0.18em;
+  }
+  footer .v { color: #2e8362; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<header>
+  <div class="eyebrow">GOD VIEW <span class="mint">·</span> MIGRATION GUIDE <span class="mint">·</span> 2026</div>
+  <h1>From the glass slab to the <em>diegetic console</em>.</h1>
+  <p class="lede">
+    A file-by-file plan for porting the Helios redesign into the live
+    <code style="font-family: 'JetBrains Mono', monospace; font-size: 17px;">tech-galaxy</code> codebase.
+    Read it once top-to-bottom, then work the sections in order — each one is
+    designed to be safe to ship on its own.
+  </p>
+  <div class="credit">
+    SUYASH PATIL <span class="v">·</span> SYSTEM-DESIGN-GOD-VIEW <span class="v">·</span> v2 REDESIGN
+  </div>
+
+  <nav class="toc">
+    <a href="#tokens"><span class="n">.01</span>Tokens</a>
+    <a href="#topbar"><span class="n">.02</span>Top Bar</a>
+    <a href="#leftpanel"><span class="n">.03</span>Left Panel</a>
+    <a href="#rightpanel"><span class="n">.04</span>Right Panel</a>
+    <a href="#scene"><span class="n">.05</span>Scene</a>
+    <a href="#palette"><span class="n">.06</span>Palette</a>
+    <a href="#cleanup"><span class="n">.07</span>Cleanup</a>
+  </nav>
+</header>
+
+<!-- ────────────────────────────────────────────────────────────────── -->
+<section id="tokens">
+  <h2><span class="n">SURFACE <span class="num">.01</span></span> Foundation tokens</h2>
+  <p class="sub">
+    Lock the new design language before touching any component. Type, colour,
+    and the palette toggle all live in shared state so every downstream change
+    just consumes them.
+  </p>
+
+  <div class="row">
+    <div class="key">src/index.css</div>
+    <div class="val">Replace radial-gradient background with pure black. Add CSS vars <code>--mint</code> and <code>--mint-dim</code>. Drop <code>.glass</code>, <code>.glass-soft</code>, <code>.glow-text</code> entirely.</div>
+    <div class="status status-port">PORT</div>
+  </div>
+
+  <div class="row">
+    <div class="key">tailwind.config.ts</div>
+    <div class="val">Replace <code>fontFamily.sans</code> with <code>['Space Grotesk', …]</code>. Add <code>'serif': ['Instrument Serif', …]</code>. Drop the rainbow <code>accent.*</code> palette; keep only <code>accent.mint</code> and <code>accent.iris</code>.</div>
+    <div class="status status-port">PORT</div>
+  </div>
+
+  <div class="row">
+    <div class="key">src/store/useGraphStore.ts</div>
+    <div class="val">Add <code>palette: 'mint' | 'iris'</code> + <code>setPalette()</code>. Persist to localStorage. Drive an effect that updates <code>document.documentElement.style.setProperty('--mint', hex)</code>.</div>
+    <div class="status status-port">PORT</div>
+  </div>
+
+  <pre><span class="c">// useGraphStore — add to State</span>
+palette: 'mint' | 'iris';
+setPalette: (p: 'mint' | 'iris') => void;
+
+<span class="c">// in create()</span>
+palette: (localStorage.getItem('godview.palette.v1') as 'mint' | 'iris') ?? 'mint',
+setPalette: (p) => {
+  localStorage.setItem('godview.palette.v1', p);
+  document.documentElement.style.setProperty('--mint',
+    p === 'mint' ? '#5EEAB7' : '#B5A0FF');
+  set({ palette: p });
+},</pre>
+
+  <p class="ref">
+    Reference: see <a href="Atlas.html">Atlas.html</a> head &lt;style&gt; block — every accent uses <code>var(--mint)</code> so a single CSS-variable swap retints the whole interface.
+  </p>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────── -->
+<section id="topbar">
+  <h2><span class="n">SURFACE <span class="num">.02</span></span> Top bar</h2>
+  <p class="sub">
+    The most visible change. Drop the gradient logo cube and the rainbow
+    chips; commit to a wordmark column, a single-accent mode strip, and
+    the palette toggle.
+  </p>
+
+  <div class="row">
+    <div class="key">src/ui/TopBar.tsx</div>
+    <div class="val">Replace whole component. See <a href="Canvas.html">Canvas · Section 02</a> for the 5 states.</div>
+    <div class="status status-port">PORT</div>
+  </div>
+
+  <div class="diff">
+    <div class="remove">
+      <h4>REMOVE</h4>
+      <ul>
+        <li>The gradient logo cube (cyan → violet → rose with Compass icon)</li>
+        <li>Conquest progress "crown" widget on desktop</li>
+        <li>8 modes rendered as <code>&lt;Chip&gt;</code> pills with per-mode tones</li>
+        <li><code>glow-text</code> class on the Tech Galaxy title</li>
+        <li>Mobile <em>modes</em> popup chrome</li>
+      </ul>
+    </div>
+    <div class="add">
+      <h4>ADD</h4>
+      <ul>
+        <li>Wordmark column: italic serif "God view.", mono caps meta, italic credit link to suyashpatil.me</li>
+        <li>Mode strip: 8 modes as <code>.NN NAME</code> text labels; active one has a glowing accent dot</li>
+        <li>Search slot: thin underline, slash-key hint, ESC pill when focused</li>
+        <li>Palette toggle: two swatches, active state pulses with its own accent</li>
+        <li>Conquest counter: mono digits + hairline progress + uppercase "CONQUERED" label</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="ref">
+    Component file is ~150 LOC in the canvas as <a href="canvas/top-bar.jsx">canvas/top-bar.jsx</a> — convert <code>style={…}</code> objects to Tailwind classes if you prefer; the structure carries over 1:1 to React.
+  </p>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────── -->
+<section id="leftpanel">
+  <h2><span class="n">SURFACE <span class="num">.03</span></span> Left navigator</h2>
+  <p class="sub">
+    The current "Navigator" is six stacked filter sections in a glass slab.
+    The new one is a single typography-led index. Same data, different
+    visual order of operations: progress first, filters second.
+  </p>
+
+  <div class="row">
+    <div class="key">src/ui/LeftPanel.tsx</div>
+    <div class="val">Rewrite around <code>SectionHead</code> + <code>RelevanceLine</code> + per-domain hairline progress rows. See <a href="Canvas.html">Canvas · Section 03</a>.</div>
+    <div class="status status-port">PORT</div>
+  </div>
+
+  <div class="row">
+    <div class="key">src/ui/primitives/GlassPanel.tsx</div>
+    <div class="val">Stop importing in LeftPanel. Replace wrapper with a bare <code>&lt;aside&gt;</code> styled with <code>border-right: 1px solid rgba(255,255,255,0.04)</code>.</div>
+    <div class="status status-delete">DELETE USAGE</div>
+  </div>
+
+  <div class="row">
+    <div class="key">src/ui/primitives/Chip.tsx</div>
+    <div class="val">Stop using for filter pills. The new "tags" are plain text in a flex row with a <code>·</code> divider; no border, no background, no tone.</div>
+    <div class="status status-delete">DELETE USAGE</div>
+  </div>
+
+  <div class="diff">
+    <div class="remove">
+      <h4>REMOVE</h4>
+      <ul>
+        <li>5 nested <code>&lt;Section&gt;</code> blocks with toggles, count badges, tones</li>
+        <li>Per-domain rainbow dots driven by <code>domainColor(d.id)</code></li>
+        <li>Gradient progress bars (<code>from-amber → via-amber → to-yellow</code>)</li>
+        <li>Big violet "Quiz me" pill with violet background</li>
+      </ul>
+    </div>
+    <div class="add">
+      <h4>ADD</h4>
+      <ul>
+        <li>Sections as plain mono <code>.NN LABEL</code> headers with a hairline rule</li>
+        <li>Domains as <em>name → fraction → hairline</em>; one accent for every domain</li>
+        <li>Filters as text-row chains separated by faint <code>·</code></li>
+        <li>"QUIZ ME →" as a centred underlined link, no background</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────── -->
+<section id="rightpanel">
+  <h2><span class="n">SURFACE <span class="num">.04</span></span> Right panel</h2>
+  <p class="sub">
+    The boldest change in the whole redesign. The Right Panel does not exist
+    anymore — selecting a node enters a <em>node-detail mode</em> where its
+    content floats as labelled annotations around the cluster itself.
+  </p>
+
+  <div class="row">
+    <div class="key">src/ui/RightPanel.tsx</div>
+    <div class="val">Don't migrate; <strong>delete</strong>. Replace with a new <code>NodeDetailOverlay.tsx</code> component that mounts when <code>selectedId</code> is set.</div>
+    <div class="status status-delete">DELETE</div>
+  </div>
+
+  <div class="row">
+    <div class="key">src/ui/NodeDetailOverlay.tsx (new)</div>
+    <div class="val">Three children: <code>&lt;ConceptHeadline&gt;</code> on the left, <code>&lt;FieldCallouts&gt;</code> on the right, <code>&lt;OrbitRing&gt;</code> centered SVG. Plus a back-to-atlas button. See the live <a href="Atlas.html">Atlas.html</a> node view.</div>
+    <div class="status status-port">PORT</div>
+  </div>
+
+  <div class="row">
+    <div class="key">Camera behaviour</div>
+    <div class="val">On <code>selectedId</code> change, ease <code>CameraRig</code> to a tight position with the selected node centered. Dim all non-ancestor particles via the existing <code>focusedSubtreeId</code> mechanism.</div>
+    <div class="status status-ready">READY</div>
+  </div>
+
+  <div class="diff">
+    <div class="remove">
+      <h4>REMOVE FROM RIGHTPANEL</h4>
+      <ul>
+        <li>All 15 scrollable sections (the original Right Panel is doing too much)</li>
+        <li><code>GlassPanel</code> wrapper</li>
+        <li><code>Chip</code> pills for difficulty / layer / interview / production</li>
+        <li><code>framer-motion</code> slide-in transition</li>
+        <li>Compare / Share / Conquer action chrome (relocate to keyboard shortcuts)</li>
+      </ul>
+    </div>
+    <div class="add">
+      <h4>ADD TO NODEDETAILOVERLAY</h4>
+      <ul>
+        <li>Big <em>Instrument Serif</em> headline · region/domain mono caps · italic short explanation</li>
+        <li>Exactly 5 callouts: WHY · MODEL · TRADEOFF · FAILS · WATCH (no others by default)</li>
+        <li>SVG <code>&lt;OrbitRing&gt;</code> centered on viewport with two counter-rotating <code>&lt;g&gt;</code> groups</li>
+        <li>4 minimal action buttons (CONQUER / ISOLATE / COMPARE / COPY LINK) under the lede</li>
+        <li>Optional "related" constellation along the bottom edge</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="ref">
+    The remaining content fields (use cases · interview framing · production framing · resources · tags) move to a secondary "Notes" reveal — a small "+ 9 more" link that expands an inline drawer.
+  </p>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────── -->
+<section id="scene">
+  <h2><span class="n">SURFACE <span class="num">.05</span></span> Scene · rendering</h2>
+  <p class="sub">
+    The galaxy itself. Solid spheres + bloom halos → particle constellations.
+    Same data; the visual idiom changes from <em>buttons in space</em> to
+    <em>a real star chart</em>.
+  </p>
+
+  <div class="row">
+    <div class="key">src/three/NodeMesh.tsx</div>
+    <div class="val">Replace <code>InstancedMesh&lt;SphereGeometry&gt;</code> with <code>THREE.Points</code> + the custom shader from <a href="js/scene.js">js/scene.js</a>. Each domain becomes a swarm of ~250 particles.</div>
+    <div class="status status-port">PORT</div>
+  </div>
+
+  <div class="row">
+    <div class="key">src/three/EdgeCurves.tsx</div>
+    <div class="val">Replace per-edge coloured bezier lines with dim mint hairlines. Drop the rainbow.</div>
+    <div class="status status-port">PORT</div>
+  </div>
+
+  <div class="row">
+    <div class="key">src/three/Starfield.tsx</div>
+    <div class="val">Likely fine as-is. Just retint to <code>var(--mint)</code> at very low opacity.</div>
+    <div class="status status-ready">READY</div>
+  </div>
+
+  <div class="row">
+    <div class="key">src/three/DomainLensFlares.tsx</div>
+    <div class="val">Remove entirely. The particle clouds already do this job, more honestly.</div>
+    <div class="status status-delete">DELETE</div>
+  </div>
+
+  <pre><span class="c">// NodeMesh.tsx — shader sketch (port from js/scene.js)</span>
+const mat = <span class="k">new</span> THREE.ShaderMaterial({
+  uniforms: {
+    uColor:  { value: <span class="k">new</span> THREE.Color(palette === <span class="s">'mint'</span> ? <span class="s">'#5EEAB7'</span> : <span class="s">'#B5A0FF'</span>) },
+    uSprite: { value: makeSpriteTexture() },
+    uTime:   { value: <span class="n">0</span> },
+    uPixel:  { value: renderer.getPixelRatio() },
+  },
+  vertexShader:   shaders.vert,
+  fragmentShader: shaders.frag,
+  transparent: <span class="k">true</span>,
+  depthWrite:  <span class="k">false</span>,
+  blending: THREE.AdditiveBlending,
+});</pre>
+
+  <p class="ref">
+    Full working code lives in <a href="js/scene.js">js/scene.js</a> — copy <code>makePointsMaterial()</code>, the sprite generator, and the per-domain cluster builder verbatim into a React-Three-Fiber hook.
+  </p>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────── -->
+<section id="palette">
+  <h2><span class="n">SURFACE <span class="num">.06</span></span> Palette toggle</h2>
+  <p class="sub">
+    The toggle is two swatches in the wordmark column. Mint is default,
+    Iris is the alternate. Preference persists. Every accent-coloured pixel
+    in the entire app changes the moment you click.
+  </p>
+
+  <div class="row">
+    <div class="key">CSS variable</div>
+    <div class="val"><code>--mint</code> is the single source of truth. Mint = <code>#5EEAB7</code>, Iris = <code>#B5A0FF</code>. The name stays "mint" even when iris is active — that's the variable; iris just rebinds it.</div>
+    <div class="status status-ready">READY</div>
+  </div>
+
+  <div class="row">
+    <div class="key">Three.js scene</div>
+    <div class="val">All shader materials hold a <code>uColor</code> uniform. On palette change, walk every points / line material and update it in one effect.</div>
+    <div class="status status-port">PORT</div>
+  </div>
+
+  <div class="row">
+    <div class="key">Component</div>
+    <div class="val">Lives in the TopBar wordmark column. Two buttons, active state has a glow box-shadow keyed to the swatch hex (not currentColor).</div>
+    <div class="status status-port">PORT</div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────── -->
+<section id="cleanup">
+  <h2><span class="n">SURFACE <span class="num">.07</span></span> Cleanup</h2>
+  <p class="sub">
+    Things to remove with no replacement once the rest is shipped.
+    Don't do these first — wait until the new vocabulary is in place.
+  </p>
+
+  <div class="row">
+    <div class="key">src/ui/primitives/GlassPanel.tsx</div>
+    <div class="val">Delete file. Nothing in the redesign uses glass.</div>
+    <div class="status status-delete">DELETE</div>
+  </div>
+
+  <div class="row">
+    <div class="key">src/ui/primitives/Chip.tsx</div>
+    <div class="val">Delete file. The redesign uses plain text + dividers for tag groups.</div>
+    <div class="status status-delete">DELETE</div>
+  </div>
+
+  <div class="row">
+    <div class="key">domainColor()</div>
+    <div class="val">In <code>src/three/layout.ts</code> — keep as a utility but stop calling it from UI. Domains all use <code>var(--mint)</code> now.</div>
+    <div class="status status-ready">KEEP</div>
+  </div>
+
+  <div class="row">
+    <div class="key">framer-motion</div>
+    <div class="val">Audit usage; replace slide-in panel animations with CSS transitions. Likely safe to remove the dependency entirely once RightPanel is gone.</div>
+    <div class="status status-port">AUDIT</div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────── -->
+<footer>
+  <div>GOD VIEW <span class="v">·</span> MIGRATION GUIDE <span class="v">·</span> VOL. I <span class="v">·</span> 2026</div>
+  <div style="margin-top: 4px;">SUYASH PATIL <span class="v">·</span> BHOPAL, INDIA</div>
+</footer>
+
+</div>
+
+</body>
+</html>

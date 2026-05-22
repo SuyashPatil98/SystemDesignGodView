@@ -72,11 +72,13 @@ export default function LODLabels({
     }
     scored.sort((a, b) => a.d - b.d);
 
-    const next = scored.slice(0, MAX_VISIBLE).map((x) => x.id);
-    // Always include selected node label even if far.
-    if (selectedId && visibleIds.has(selectedId) && !next.includes(selectedId)) {
-      next.push(selectedId);
-    }
+    // Don't include the selected node — the NodeDetailOverlay already
+    // renders its name as the canonical headline; the world-space pill
+    // would just stack a duplicate behind it.
+    const next = scored
+      .slice(0, MAX_VISIBLE)
+      .map((x) => x.id)
+      .filter((id) => id !== selectedId);
 
     const sig = next.join('|');
     if (sig !== lastSig.current) {
@@ -107,16 +109,15 @@ export default function LODLabels({
             zIndexRange={[8, 0]}
           >
             <div
-              className={`no-select whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                isSel
-                  ? 'bg-ink-900/85 text-white shadow-[0_0_14px_rgba(34,211,238,0.45)] border border-cyan-300/40'
-                  : isConq
-                  ? 'text-amber-200/95'
-                  : 'text-slate-200/85'
-              }`}
+              className="no-select whitespace-nowrap px-1.5 py-0.5 text-[10px] font-medium font-sans"
               style={{
+                color: isSel
+                  ? '#fff'
+                  : isConq
+                  ? 'var(--mint)'
+                  : 'rgba(255,255,255,0.78)',
                 textShadow: isSel
-                  ? '0 0 8px rgba(34,211,238,0.6)'
+                  ? '0 0 10px var(--mint-dim), 0 1px 4px rgba(0,0,0,0.95)'
                   : '0 1px 4px rgba(0,0,0,0.85)',
               }}
             >

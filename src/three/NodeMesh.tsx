@@ -1,12 +1,13 @@
-import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useEffect, useMemo, useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { GNode, NodeKind } from '../data/schema';
+import { useGraphStore } from '../store/useGraphStore';
+import type { GNode } from '../data/schema';
 import type { Positioned } from './layout';
 
 interface Props {
-  nodes: GNode[];            // ALL nodes in the dataset — capacity is fixed.
-  visibleIds: Set<string>;   // The subset currently visible.
+  nodes: GNode[]; // ALL nodes in the dataset — capacity is fixed.
+  visibleIds: Set<string>; // The subset currently visible.
   layout: Map<string, Positioned>;
   selectedId: string | null;
   hoveredId: string | null;
@@ -17,75 +18,201 @@ interface Props {
   onShiftSelect?: (id: string) => void;
 }
 
-// Per-kind geometry — gives the eye an immediate read on *what kind* of node
-// it is, and adds variety. Domains use PBR + env reflections so they look
-// like polished gems. Other kinds stay emissive for bloom.
+// ───────────────────── Surface .05 — particle scene ─────────────────────
 //
-// Stability matters: we allocate every InstancedMesh once at the full
-// per-kind capacity. Visibility is implemented as scale=0 in the loop so
-// args never change and R3F never rebuilds the mesh — which is what was
-// dropping clicks under the previous implementation.
+// Each domain becomes a swarm of ~440+ point sprites in 3 layers (core, mid,
+// halo) plus small anchor clusters at every subdomain and concept position.
+// The visual is shader-driven (gentle drift, sprite-textured points with
+// additive blending). uColor reads from the palette store so MINT/IRIS
+// toggling retints every particle live.
+//
+// Selection / hover / clicking still works because we render an invisible
+// InstancedMesh of small spheres at every node's exact layout position —
+// raycasts hit those, particle clouds skip raycasting entirely.
 
-const GOLD = new THREE.Color('#facc15');
-const WHITE = new THREE.Color('#ffffff');
 const HIDDEN_POS = new THREE.Vector3(0, -100000, 0);
 
-// Build geometries once at module load.
-const geomFor: Record<NodeKind, THREE.BufferGeometry> = {
-  domain: new THREE.IcosahedronGeometry(1, 0),
-  subdomain: new THREE.OctahedronGeometry(1, 0),
-  concept: new THREE.SphereGeometry(1, 16, 16),
-  pattern: new THREE.TorusGeometry(0.7, 0.28, 10, 20),
-  tool: new THREE.BoxGeometry(1.25, 1.25, 1.25),
-  metric: new THREE.TetrahedronGeometry(1.15, 0),
-  failureMode: new THREE.IcosahedronGeometry(1.05, 1),
-};
-
-const geomHalo = new THREE.SphereGeometry(1, 12, 12);
-const geomCrown = new THREE.TorusGeometry(1.2, 0.12, 10, 32);
-
-const KINDS: NodeKind[] = [
-  'domain',
-  'subdomain',
-  'concept',
-  'pattern',
-  'tool',
-  'metric',
-  'failureMode',
-];
-
-function makeMaterialFor(kind: NodeKind): THREE.Material {
-  if (kind === 'domain') {
-    return new THREE.MeshPhysicalMaterial({
-      metalness: 0.35,
-      roughness: 0.22,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.08,
-      envMapIntensity: 1.55,
-      emissive: new THREE.Color('#000000'),
-      emissiveIntensity: 0.4,
-      toneMapped: true,
-    });
-  }
-  if (kind === 'subdomain') {
-    return new THREE.MeshStandardMaterial({
-      metalness: 0.25,
-      roughness: 0.45,
-      envMapIntensity: 0.9,
-      emissive: new THREE.Color('#000000'),
-      emissiveIntensity: 0.6,
-      toneMapped: true,
-    });
-  }
-  return new THREE.MeshBasicMaterial({ toneMapped: false });
+// ── Sprite (shared) ─────────────────────────────────────────────────────
+function makeSprite(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.18, 'rgba(255,255,255,0.85)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.25)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.minFilter = THREE.LinearFilter;
+  return t;
 }
 
-interface KindBucket {
-  kind: NodeKind;
-  nodes: GNode[];
-  ids: string[];
+// ── Box-Muller gaussian in 3D ───────────────────────────────────────────
+function gaussian3(scale: number): THREE.Vector3 {
+  const bm = () => {
+    const u = Math.random() || 1e-9;
+    const v = Math.random() || 1e-9;
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  };
+  return new THREE.Vector3(bm() * scale, bm() * scale, bm() * scale);
 }
 
+const VERTEX_SHADER = /* glsl */ `
+  attribute float aSize;
+  attribute float aBright;
+  attribute float aSeed;
+  uniform float uTime;
+  uniform float uPixel;
+  uniform float uDrift;
+  uniform float uSizeMul;
+  varying float vBright;
+
+  void main() {
+    vBright = aBright;
+    vec3 p = position;
+    float t = uTime * 0.00035;
+    p.x += sin(t + aSeed) * 0.55 * uDrift;
+    p.y += cos(t * 0.78 + aSeed * 1.7) * 0.42 * uDrift;
+    p.z += sin(t * 0.61 + aSeed * 2.3) * 0.48 * uDrift;
+
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = aSize * uSizeMul * uPixel * (260.0 / -mv.z);
+  }
+`;
+
+const FRAGMENT_SHADER = /* glsl */ `
+  precision mediump float;
+  uniform sampler2D uSprite;
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  uniform float uGlobalAlpha;
+  varying float vBright;
+
+  void main() {
+    vec4 tex = texture2D(uSprite, gl_PointCoord);
+    if (tex.a < 0.02) discard;
+    float a = tex.a * vBright * uOpacity * uGlobalAlpha;
+    vec3 hot = mix(uColor, vec3(1.0), pow(vBright, 4.0) * 0.65);
+    gl_FragColor = vec4(hot * vBright * 2.2, a);
+  }
+`;
+
+function makeMaterial(
+  sprite: THREE.Texture,
+  pixelRatio: number,
+  opts: { sizeMul?: number; opacity?: number } = {},
+): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uSprite: { value: sprite },
+      uPixel: { value: pixelRatio },
+      uColor: { value: new THREE.Color('#5EEAB7') },
+      uDrift: { value: 1.0 },
+      uOpacity: { value: opts.opacity ?? 1.0 },
+      uSizeMul: { value: opts.sizeMul ?? 1.0 },
+      uGlobalAlpha: { value: 1.0 },
+    },
+    vertexShader: VERTEX_SHADER,
+    fragmentShader: FRAGMENT_SHADER,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+}
+
+// ── Per-domain cloud geometry ───────────────────────────────────────────
+function buildDomainCloud(
+  domain: GNode,
+  allNodes: GNode[],
+  layout: Map<string, Positioned>,
+  childrenByParent: Map<string, GNode[]>,
+): THREE.BufferGeometry {
+  const center = layout.get(domain.id)?.position;
+  const geo = new THREE.BufferGeometry();
+  if (!center) return geo;
+
+  const positions: number[] = [];
+  const sizes: number[] = [];
+  const brightness: number[] = [];
+  const seeds: number[] = [];
+
+  const push = (p: THREE.Vector3, s: number, b: number) => {
+    positions.push(p.x, p.y, p.z);
+    sizes.push(s);
+    brightness.push(b);
+    seeds.push(Math.random() * 6.28);
+  };
+
+  // Core — tight, bright
+  for (let i = 0; i < 40; i++) {
+    push(
+      gaussian3(2.0).add(center),
+      1.6 + Math.random() * 0.8,
+      0.9 + Math.random() * 0.1,
+    );
+  }
+  // Mid — spread
+  for (let i = 0; i < 130; i++) {
+    push(
+      gaussian3(6.0).add(center),
+      0.9 + Math.random() * 0.7,
+      0.55 + Math.random() * 0.3,
+    );
+  }
+  // Halo — sparse atmosphere
+  for (let i = 0; i < 260; i++) {
+    push(
+      gaussian3(12).add(center),
+      0.5 + Math.random() * 0.6,
+      0.18 + Math.random() * 0.22,
+    );
+  }
+
+  // Per subdomain anchor — gives the subdomain a hot spot in the cloud
+  const subs = childrenByParent.get(domain.id) ?? [];
+  for (const s of subs) {
+    const sp = layout.get(s.id)?.position;
+    if (!sp) continue;
+    for (let i = 0; i < 5; i++) {
+      push(
+        gaussian3(1.5).add(sp),
+        1.0 + Math.random() * 0.6,
+        0.7 + Math.random() * 0.15,
+      );
+    }
+    // Per concept under this subdomain
+    const concepts = childrenByParent.get(s.id) ?? [];
+    for (const c of concepts) {
+      const cp = layout.get(c.id)?.position;
+      if (!cp) continue;
+      for (let i = 0; i < 3; i++) {
+        push(
+          gaussian3(0.8).add(cp),
+          0.7 + Math.random() * 0.3,
+          0.45 + Math.random() * 0.15,
+        );
+      }
+    }
+  }
+
+  geo.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(positions, 3),
+  );
+  geo.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1));
+  geo.setAttribute(
+    'aBright',
+    new THREE.Float32BufferAttribute(brightness, 1),
+  );
+  geo.setAttribute('aSeed', new THREE.Float32BufferAttribute(seeds, 1));
+  return geo;
+}
+
+// ──────────────────────── component ─────────────────────────────────────
 export default function NodeMesh({
   nodes,
   visibleIds,
@@ -93,294 +220,292 @@ export default function NodeMesh({
   selectedId,
   hoveredId,
   emphasized,
-  conquered,
   onHover,
   onSelect,
   onShiftSelect,
 }: Props) {
-  // Refs to each kind's InstancedMesh. Stable across re-renders.
-  const domainRef = useRef<THREE.InstancedMesh>(null);
-  const subdomainRef = useRef<THREE.InstancedMesh>(null);
-  const conceptRef = useRef<THREE.InstancedMesh>(null);
-  const patternRef = useRef<THREE.InstancedMesh>(null);
-  const toolRef = useRef<THREE.InstancedMesh>(null);
-  const metricRef = useRef<THREE.InstancedMesh>(null);
-  const failureModeRef = useRef<THREE.InstancedMesh>(null);
-  const refsByKind: Record<NodeKind, React.RefObject<THREE.InstancedMesh>> = useMemo(
-    () => ({
-      domain: domainRef,
-      subdomain: subdomainRef,
-      concept: conceptRef,
-      pattern: patternRef,
-      tool: toolRef,
-      metric: metricRef,
-      failureMode: failureModeRef,
-    }),
-    [],
-  );
-  const haloRef = useRef<THREE.InstancedMesh>(null);
-  const crownRef = useRef<THREE.InstancedMesh>(null);
+  const palette = useGraphStore((s) => s.palette);
+  const { gl } = useThree();
 
-  // Buckets built ONCE from the full dataset. Capacity is fixed at mount.
-  const buckets: KindBucket[] = useMemo(() => {
-    const out: KindBucket[] = KINDS.map((kind) => ({
-      kind,
-      nodes: [],
-      ids: [],
-    }));
-    const byKind = new Map<NodeKind, KindBucket>(out.map((b) => [b.kind, b]));
+  // Sprite + pixel ratio — created once.
+  const sprite = useMemo(() => makeSprite(), []);
+  const pixelRatio = useMemo(() => gl.getPixelRatio(), [gl]);
+
+  // Pre-compute children map so we don't rebuild it per domain.
+  const childrenByParent = useMemo(() => {
+    const m = new Map<string, GNode[]>();
     for (const n of nodes) {
-      const b = byKind.get(n.kind);
-      if (!b) continue;
-      b.nodes.push(n);
-      b.ids.push(n.id);
+      if (!n.parentId) continue;
+      const arr = m.get(n.parentId) ?? [];
+      arr.push(n);
+      m.set(n.parentId, arr);
     }
-    return out;
+    return m;
   }, [nodes]);
 
-  // Halo + crown are indexed by all-nodes-in-order so the index space is stable.
-  const allIdsInOrder = useMemo(() => nodes.map((n) => n.id), [nodes]);
+  // Domains and their geometries (one cloud per domain).
+  const domainNodes = useMemo(
+    () => nodes.filter((n) => n.kind === 'domain'),
+    [nodes],
+  );
 
-  // Pre-compute base size/color per node.
+  const cloudGeometries = useMemo(
+    () =>
+      domainNodes.map((d) =>
+        buildDomainCloud(d, nodes, layout, childrenByParent),
+      ),
+    [domainNodes, nodes, layout, childrenByParent],
+  );
+
+  const cloudMaterials = useMemo(
+    () => domainNodes.map(() => makeMaterial(sprite, pixelRatio)),
+    [domainNodes, sprite, pixelRatio],
+  );
+
+  // ── Node pips — one bright sprite at every non-domain node's exact
+  //    position so subdomains / concepts / patterns etc. are findable
+  //    inside the cluster swarm.
+  const pipNodes = useMemo(
+    () => nodes.filter((n) => n.kind !== 'domain'),
+    [nodes],
+  );
+  // Base (target) size per node kind. Pip size lerps toward this target
+  // whenever the node becomes visible; lerps to 0 when hidden.
+  const pipBaseSize = (kind: GNode['kind']) =>
+    kind === 'subdomain' ? 5.5 : kind === 'concept' ? 3.5 : 2.5;
+
+  const pipGeometry = useMemo(() => {
+    const positions = new Float32Array(pipNodes.length * 3);
+    const sizes = new Float32Array(pipNodes.length); // current (lerped) size
+    const brights = new Float32Array(pipNodes.length);
+    const seeds = new Float32Array(pipNodes.length);
+    for (let i = 0; i < pipNodes.length; i++) {
+      const n = pipNodes[i];
+      const p = layout.get(n.id)?.position;
+      positions[i * 3 + 0] = p?.x ?? 0;
+      positions[i * 3 + 1] = p?.y ?? 0;
+      positions[i * 3 + 2] = p?.z ?? 0;
+      // Start size 0 — they grow in on first visibility.
+      sizes[i] = 0;
+      brights[i] = n.kind === 'subdomain' ? 0.98 : 0.82;
+      seeds[i] = Math.random() * 6.28;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+    geo.setAttribute('aBright', new THREE.BufferAttribute(brights, 1));
+    geo.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1));
+    return geo;
+  }, [pipNodes, layout]);
+  const pipMaterial = useMemo(
+    () => makeMaterial(sprite, pixelRatio, { sizeMul: 1.0 }),
+    [sprite, pixelRatio],
+  );
+  // Track previous visibility/size state so we only push attribute updates
+  // on change rather than every frame.
+  const pipLastDirtyRef = useRef(0);
+
+  // ── Palette toggle wiring (Surface .06 already prepped here) ────────
+  useEffect(() => {
+    const hex = palette === 'mint' ? '#5EEAB7' : '#B5A0FF';
+    for (const m of cloudMaterials) (m.uniforms.uColor.value as THREE.Color).set(hex);
+    (pipMaterial.uniforms.uColor.value as THREE.Color).set(hex);
+  }, [palette, cloudMaterials, pipMaterial]);
+
+  // Cleanup geometries + materials on unmount or when they change.
+  useEffect(() => {
+    return () => {
+      for (const g of cloudGeometries) g.dispose();
+      for (const m of cloudMaterials) m.dispose();
+    };
+  }, [cloudGeometries, cloudMaterials]);
+  useEffect(
+    () => () => {
+      pipGeometry.dispose();
+      pipMaterial.dispose();
+      sprite.dispose();
+    },
+    [pipGeometry, pipMaterial, sprite],
+  );
+
+  // Which domains should be "lit" right now? Derived from `emphasized`.
+  const emphasizedDomainIds = useMemo(() => {
+    if (!emphasized) return null;
+    const out = new Set<string>();
+    for (const n of nodes) {
+      if (emphasized.has(n.id)) out.add(n.domainId);
+    }
+    return out;
+  }, [nodes, emphasized]);
+
+  // ── Click targets — invisible spheres at every node's position ──────
+  const clickRef = useRef<THREE.InstancedMesh>(null);
+  const idsInOrder = useMemo(() => nodes.map((n) => n.id), [nodes]);
   const sizeById = useMemo(() => {
     const m = new Map<string, number>();
-    nodes.forEach((n) => m.set(n.id, layout.get(n.id)?.size ?? 0.5));
+    for (const n of nodes) m.set(n.id, layout.get(n.id)?.size ?? 0.5);
     return m;
   }, [nodes, layout]);
-  const colorById = useMemo(() => {
-    const m = new Map<string, THREE.Color>();
-    nodes.forEach((n) =>
-      m.set(
-        n.id,
-        layout.get(n.id)?.color.clone() ?? new THREE.Color('#94a3b8'),
-      ),
-    );
-    return m;
-  }, [nodes, layout]);
-
-  // Materials memoized once (per kind). NEVER recreated.
-  const materials = useMemo(() => {
-    const m: Record<NodeKind, THREE.Material> = {} as any;
-    for (const k of KINDS) m[k] = makeMaterialFor(k);
-    return m;
-  }, []);
-
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const tmpColor = useMemo(() => new THREE.Color(), []);
-  const tmpQuat = useMemo(() => new THREE.Quaternion(), []);
-  const tmpUp = useMemo(() => new THREE.Vector3(0, 1, 0), []);
-  const t = useRef(0);
 
-  useFrame((_, delta) => {
-    t.current += delta;
-    const halo = haloRef.current;
-    const crown = crownRef.current;
-    if (!halo || !crown) return;
+  const clickGeom = useMemo(() => new THREE.SphereGeometry(1, 8, 8), []);
 
-    // ─── Per-kind nodes ───
-    for (const bucket of buckets) {
-      const mesh = refsByKind[bucket.kind].current;
-      if (!mesh) continue;
+  // ── Per-frame: time, drift, emphasis fade, click+marker updates ─────
+  useFrame((state) => {
+    const elapsedMs = state.clock.elapsedTime * 1000;
 
-      for (let i = 0; i < bucket.nodes.length; i++) {
-        const n = bucket.nodes[i];
-        const visible = visibleIds.has(n.id);
-        const pos = layout.get(n.id);
-        if (!visible || !pos) {
-          // Hide: zero scale + move far below so raycast can't hit it.
+    // Cloud uTime + per-domain emphasis fade.
+    // - emphasized OR selected-domain → lit (1.0); selected gets an extra
+    //   brightness boost so clicking a domain is unmistakably "this one".
+    // - all others → dim 0.15 when an emphasized set is active.
+    const selectedDomainId =
+      selectedId
+        ? (() => {
+            // Walk up to find the domain id (only if it's reachable).
+            for (const n of nodes) {
+              if (n.id === selectedId) return n.kind === 'domain' ? n.id : n.domainId;
+            }
+            return null;
+          })()
+        : null;
+    for (let i = 0; i < cloudMaterials.length; i++) {
+      const m = cloudMaterials[i];
+      m.uniforms.uTime.value = elapsedMs;
+      const did = domainNodes[i].id;
+      const isLit =
+        !emphasizedDomainIds || emphasizedDomainIds.has(did);
+      const isSelectedDomain = did === selectedDomainId;
+      const target = isSelectedDomain ? 1.35 : isLit ? 1.0 : 0.15;
+      const cur = m.uniforms.uGlobalAlpha.value as number;
+      m.uniforms.uGlobalAlpha.value = cur + (target - cur) * 0.08;
+    }
+
+    // Pip uTime + per-frame smooth size lerp toward each node's target.
+    // Newly-visible nodes grow in from 0 → target with a slight overshoot
+    // so the user gets an unmistakable "yes, this just expanded" pop.
+    pipMaterial.uniforms.uTime.value = elapsedMs;
+    const pipSizeAttr = pipGeometry.attributes.aSize as THREE.BufferAttribute;
+    const pipBrightAttr = pipGeometry.attributes.aBright as THREE.BufferAttribute;
+    const sizes = pipSizeAttr.array as Float32Array;
+    const brights = pipBrightAttr.array as Float32Array;
+    let pipDirty = false;
+    for (let i = 0; i < pipNodes.length; i++) {
+      const n = pipNodes[i];
+      const isVisible = visibleIds.has(n.id);
+      const isSel = n.id === selectedId;
+      const isHover = n.id === hoveredId;
+      const base = pipBaseSize(n.kind);
+      const target = !isVisible
+        ? 0
+        : base * (isSel ? 1.55 : isHover ? 1.25 : 1);
+      const cur = sizes[i];
+      // Slightly snappier when growing than shrinking; visible appear feels
+      // immediate, hide is calm.
+      const growing = target > cur;
+      const k = growing ? 0.22 : 0.14;
+      const next = cur + (target - cur) * k;
+      // Snap when very close to target so we stop touching the buffer.
+      const final = Math.abs(next - target) < 0.01 ? target : next;
+      if (sizes[i] !== final) {
+        sizes[i] = final;
+        pipDirty = true;
+      }
+
+      const baseBright = n.kind === 'subdomain' ? 0.98 : 0.82;
+      const wantBright = !isVisible ? 0 : isSel || isHover ? 1.0 : baseBright;
+      const curBright = brights[i];
+      const nextBright = curBright + (wantBright - curBright) * 0.18;
+      const finalBright =
+        Math.abs(nextBright - wantBright) < 0.01 ? wantBright : nextBright;
+      if (brights[i] !== finalBright) {
+        brights[i] = finalBright;
+        pipDirty = true;
+      }
+    }
+    if (pipDirty) {
+      pipSizeAttr.needsUpdate = true;
+      pipBrightAttr.needsUpdate = true;
+      pipLastDirtyRef.current = elapsedMs;
+    }
+
+    // Click target positions — invisible spheres at every node.
+    const click = clickRef.current;
+    if (click) {
+      for (let i = 0; i < idsInOrder.length; i++) {
+        const id = idsInOrder[i];
+        const pos = layout.get(id)?.position;
+        if (!visibleIds.has(id) || !pos) {
           dummy.position.copy(HIDDEN_POS);
           dummy.scale.setScalar(0.0001);
-          dummy.rotation.set(0, 0, 0);
-          dummy.updateMatrix();
-          mesh.setMatrixAt(i, dummy.matrix);
-          mesh.setColorAt(i, tmpColor.set(0, 0, 0));
-          continue;
+        } else {
+          dummy.position.copy(pos);
+          // Generous click target — ~2× the node's visual size so the user
+          // doesn't have to be pixel-perfect when clicking through cloud haze.
+          // Also enforce a floor so even tiny detail nodes are reachable.
+          const s = Math.max(2.5, (sizeById.get(id) ?? 0.5) * 2.0);
+          dummy.scale.setScalar(s);
         }
-
-        const isSel = n.id === selectedId;
-        const isHover = n.id === hoveredId;
-        const isConq = conquered.has(n.id);
-        const dim = emphasized && !emphasized.has(n.id);
-
-        let scale = sizeById.get(n.id) ?? 0.5;
-        if (isHover) scale *= 1.4;
-        if (isSel) scale *= 1.6;
-
-        const spinPhase = i * 0.31;
-        const spinRate =
-          bucket.kind === 'concept'
-            ? 0
-            : bucket.kind === 'domain'
-            ? 0.12
-            : 0.28;
-        const breathe = isSel
-          ? 1 + Math.sin(t.current * 3.0) * 0.07
-          : isHover
-          ? 1 + Math.sin(t.current * 4.0) * 0.04
-          : 1;
-
-        dummy.position.copy(pos.position);
-        dummy.scale.setScalar(scale * breathe);
-        dummy.rotation.set(
-          t.current * spinRate * 0.6 + spinPhase,
-          t.current * spinRate + spinPhase * 1.7,
-          0,
-        );
         dummy.updateMatrix();
-        mesh.setMatrixAt(i, dummy.matrix);
-
-        const color = (colorById.get(n.id) ?? WHITE).clone();
-        if (dim) color.multiplyScalar(0.22);
-        if (isConq) color.lerp(GOLD, 0.18);
-        if (isSel) color.lerp(WHITE, 0.32);
-        else if (isHover) color.lerp(WHITE, 0.2);
-        if (bucket.kind === 'domain' || bucket.kind === 'subdomain') {
-          color.multiplyScalar(1.45);
-        }
-        mesh.setColorAt(i, color);
+        click.setMatrixAt(i, dummy.matrix);
       }
-
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      click.instanceMatrix.needsUpdate = true;
     }
-
-    // ─── Halo + crown (indexed by allIdsInOrder) ───
-    for (let i = 0; i < allIdsInOrder.length; i++) {
-      const id = allIdsInOrder[i];
-      const visible = visibleIds.has(id);
-      const pos = layout.get(id);
-
-      if (!visible || !pos) {
-        dummy.position.copy(HIDDEN_POS);
-        dummy.scale.setScalar(0.0001);
-        dummy.rotation.set(0, 0, 0);
-        dummy.updateMatrix();
-        halo.setMatrixAt(i, dummy.matrix);
-        crown.setMatrixAt(i, dummy.matrix);
-        halo.setColorAt(i, tmpColor.set(0, 0, 0));
-        crown.setColorAt(i, tmpColor.set(0, 0, 0));
-        continue;
-      }
-
-      const isSel = id === selectedId;
-      const isHover = id === hoveredId;
-      const isConq = conquered.has(id);
-      const dim = emphasized && !emphasized.has(id);
-
-      let scale = sizeById.get(id) ?? 0.5;
-      if (isHover) scale *= 1.4;
-      if (isSel) scale *= 1.6;
-
-      dummy.position.copy(pos.position);
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.setScalar(
-        scale * (isSel ? 3.6 : isHover ? 2.8 : isConq ? 2.4 : 2.2),
-      );
-      dummy.updateMatrix();
-      halo.setMatrixAt(i, dummy.matrix);
-      const haloColor = (colorById.get(id) ?? WHITE).clone();
-      if (dim) haloColor.multiplyScalar(0.05);
-      else if (isConq) haloColor.multiplyScalar(0.6);
-      else haloColor.multiplyScalar(0.45);
-      halo.setColorAt(i, haloColor);
-
-      if (isConq) {
-        const crownPulse = 1 + Math.sin(t.current * 2.2 + i * 0.7) * 0.06;
-        tmpQuat.setFromUnitVectors(tmpUp, pos.position.clone().normalize());
-        dummy.scale.setScalar(scale * 1.5 * crownPulse);
-        dummy.quaternion.copy(tmpQuat);
-        dummy.updateMatrix();
-        crown.setMatrixAt(i, dummy.matrix);
-        tmpColor.copy(GOLD).multiplyScalar(dim ? 0.2 : 1.0);
-        crown.setColorAt(i, tmpColor);
-      } else {
-        dummy.scale.setScalar(0.0001);
-        dummy.quaternion.identity();
-        dummy.updateMatrix();
-        crown.setMatrixAt(i, dummy.matrix);
-        crown.setColorAt(i, tmpColor.set(0, 0, 0));
-      }
-    }
-
-    halo.instanceMatrix.needsUpdate = true;
-    crown.instanceMatrix.needsUpdate = true;
-    if (halo.instanceColor) halo.instanceColor.needsUpdate = true;
-    if (crown.instanceColor) crown.instanceColor.needsUpdate = true;
   });
 
   return (
-    <>
-      <instancedMesh
-        ref={haloRef}
-        args={[geomHalo, undefined as any, Math.max(1, nodes.length)]}
-        frustumCulled={false}
-      >
-        <meshBasicMaterial
-          transparent
-          opacity={0.32}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
+    <group>
+      {/* Particle clouds — one per domain, decorative only */}
+      {domainNodes.map((d, i) => (
+        <points
+          key={d.id}
+          geometry={cloudGeometries[i]}
+          material={cloudMaterials[i]}
+          frustumCulled={false}
+          raycast={() => null}
         />
-      </instancedMesh>
+      ))}
 
-      <instancedMesh
-        ref={crownRef}
-        args={[geomCrown, undefined as any, Math.max(1, nodes.length)]}
+      {/* Per-node pips — bright sprites at every non-domain node */}
+      <points
+        geometry={pipGeometry}
+        material={pipMaterial}
         frustumCulled={false}
-      >
-        <meshBasicMaterial
-          transparent
-          opacity={0.95}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
-        />
-      </instancedMesh>
+        raycast={() => null}
+      />
 
-      {buckets.map((bucket) => {
-        if (bucket.nodes.length === 0) return null;
-        return (
-          <instancedMesh
-            key={bucket.kind}
-            ref={refsByKind[bucket.kind]}
-            args={[geomFor[bucket.kind], materials[bucket.kind], bucket.nodes.length]}
-            frustumCulled={false}
-            onPointerOver={(e) => {
-              e.stopPropagation();
-              const i = e.instanceId;
-              if (typeof i !== 'number') return;
-              const id = bucket.ids[i];
-              if (visibleIds.has(id)) {
-                onHover(id);
-                document.body.style.cursor = 'pointer';
-              }
-            }}
-            onPointerOut={() => {
-              onHover(null);
-              document.body.style.cursor = '';
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              const i = e.instanceId;
-              if (typeof i !== 'number') return;
-              const id = bucket.ids[i];
-              if (!visibleIds.has(id)) return;
-              // Only treat as compare-pick when SHIFT is held alone (no other
-              // modifiers). Defends against OS / accessibility weirdness that
-              // could otherwise hijack every click.
-              const ne = e.nativeEvent;
-              const shiftOnly =
-                ne.shiftKey && !ne.altKey && !ne.ctrlKey && !ne.metaKey;
-              if (shiftOnly && onShiftSelect) {
-                onShiftSelect(id);
-              } else {
-                onSelect(id);
-              }
-            }}
-          />
-        );
-      })}
-    </>
+      {/* Invisible click targets — one InstancedMesh for everything */}
+      <instancedMesh
+        ref={clickRef}
+        args={[clickGeom, undefined as any, Math.max(1, nodes.length)]}
+        frustumCulled={false}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          const i = e.instanceId;
+          if (typeof i !== 'number') return;
+          const id = idsInOrder[i];
+          if (!visibleIds.has(id)) return;
+          onHover(id);
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          onHover(null);
+          document.body.style.cursor = '';
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          const i = e.instanceId;
+          if (typeof i !== 'number') return;
+          const id = idsInOrder[i];
+          if (!visibleIds.has(id)) return;
+          const ne = e.nativeEvent;
+          const shiftOnly =
+            ne.shiftKey && !ne.altKey && !ne.ctrlKey && !ne.metaKey;
+          if (shiftOnly && onShiftSelect) onShiftSelect(id);
+          else onSelect(id);
+        }}
+      >
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </instancedMesh>
+    </group>
   );
 }

@@ -11,7 +11,6 @@ import ClusterLabels from './ClusterLabels';
 import ClusterNebulae from './ClusterNebulae';
 import DustField from './DustField';
 import AncestorChain from './AncestorChain';
-import DomainLensFlares from './DomainLensFlares';
 import NearestDomainTracker from './NearestDomainTracker';
 import { domains as ALL_DOMAINS } from '../data/domains';
 
@@ -130,12 +129,6 @@ export default function GalaxyGraph({
         onHover={onHover}
         onSelect={onSelect}
         onShiftSelect={onShiftSelect}
-      />
-
-      <DomainLensFlares
-        nodes={visibleNodes}
-        layout={layout}
-        domainIds={domainIds}
       />
 
       <LODLabels

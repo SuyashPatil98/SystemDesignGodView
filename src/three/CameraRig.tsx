@@ -25,6 +25,7 @@ export default function CameraRig() {
   const { camera, gl } = useThree();
   const focus = useGraphStore((s) => s.focusTarget);
   const focusToken = useGraphStore((s) => s.focusToken);
+  const focusDistance = useGraphStore((s) => s.focusDistance);
 
   const tween = useRef<{
     startPos: THREE.Vector3;

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X } from 'lucide-react';
 import { useGraphStore } from '../store/useGraphStore';
 import type { GNode } from '../data/schema';
 import { buildSearchIndex } from '../lib/search';
@@ -9,10 +8,13 @@ interface Props {
   onPickNode: (id: string) => void;
 }
 
+const ACCENT = 'var(--mint)';
+
 export default function SearchBox({ nodes, onPickNode }: Props) {
   const query = useGraphStore((s) => s.filters.query);
   const setQuery = useGraphStore((s) => s.setQuery);
   const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fuse = useMemo(() => buildSearchIndex(nodes), [nodes]);
@@ -39,9 +41,23 @@ export default function SearchBox({ nodes, onPickNode }: Props) {
   }, []);
 
   return (
-    <div className="relative w-[420px] max-w-[44vw]">
-      <div className="glass-soft flex items-center gap-2 rounded-full px-3 py-2">
-        <Search size={14} className="text-slate-400" />
+    <div className="relative w-[260px]">
+      <div
+        className="flex items-baseline gap-2.5 border-b py-1.5 transition-colors"
+        style={{
+          borderColor: focused ? ACCENT : 'rgba(255,255,255,0.18)',
+        }}
+      >
+        <span
+          className="font-mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: '0.06em',
+            color: focused ? ACCENT : 'rgba(255,255,255,0.4)',
+          }}
+        >
+          /
+        </span>
         <input
           ref={inputRef}
           value={query}
@@ -49,25 +65,25 @@ export default function SearchBox({ nodes, onPickNode }: Props) {
             setQuery(e.target.value);
             setOpen(true);
           }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 120)}
-          placeholder="Search concepts, tools, failure modes…"
-          className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 outline-none"
+          onFocus={() => {
+            setFocused(true);
+            setOpen(true);
+          }}
+          onBlur={() => {
+            setFocused(false);
+            setTimeout(() => setOpen(false), 120);
+          }}
+          placeholder="Search the atlas"
+          className="flex-1 bg-transparent font-serif italic text-white placeholder:text-white/40 outline-none"
+          style={{ fontSize: 13, letterSpacing: '0.01em' }}
         />
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery('')}
-            className="text-slate-500 hover:text-slate-200"
-          >
-            <X size={14} />
-          </button>
-        )}
-        <kbd className="kbd">/</kbd>
       </div>
 
       {open && results.length > 0 && (
-        <div className="glass absolute left-0 right-0 top-full z-30 mt-2 max-h-[60vh] overflow-y-auto rounded-xl p-1">
+        <div
+          className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-[60vh] overflow-y-auto border bg-black/95 backdrop-blur-sm"
+          style={{ borderColor: 'rgba(255,255,255,0.1)' }}
+        >
           {results.map((n) => (
             <button
               key={n.id}
@@ -77,16 +93,14 @@ export default function SearchBox({ nodes, onPickNode }: Props) {
                 onPickNode(n.id);
                 setOpen(false);
               }}
-              className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-white/5"
+              className="block w-full px-3 py-2 text-left transition-colors hover:bg-white/[0.04]"
             >
-              <span className="mt-1 inline-block h-2 w-2 rounded-full bg-cyan-300/80" />
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-slate-100">
-                  {n.name}
-                </div>
-                <div className="truncate text-[11px] text-slate-400">
-                  {n.kind} · {n.shortExplanation}
-                </div>
+              <div className="truncate text-[13px] text-white">{n.name}</div>
+              <div
+                className="truncate font-mono text-white/45"
+                style={{ fontSize: 10, letterSpacing: '0.06em' }}
+              >
+                {n.kind} · {n.shortExplanation}
               </div>
             </button>
           ))}

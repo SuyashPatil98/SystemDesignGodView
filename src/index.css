@@ -4,6 +4,10 @@
 
 :root {
   color-scheme: dark;
+  /* God-view tokens. --mint is rebound by useGraphStore.setPalette() — it's
+     the single source of truth for every accent in the redesign. */
+  --mint:     #5EEAB7;
+  --mint-dim: rgba(94, 234, 183, 0.45);
 }
 
 html,
@@ -13,7 +17,20 @@ body,
   width: 100%;
   margin: 0;
   overflow: hidden;
-  background: radial-gradient(ellipse at center, #0a0d18 0%, #05070d 70%);
+  background: #000;
+}
+
+body {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-weight: 400;
+  color: #e9f7ef;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(94, 234, 183, 0.35);
+  color: #fff;
 }
 
 * {
@@ -30,32 +47,6 @@ body,
 }
 *::-webkit-scrollbar-track {
   background: transparent;
-}
-
-.glass {
-  background: linear-gradient(
-    180deg,
-    rgba(15, 20, 36, 0.78) 0%,
-    rgba(10, 13, 24, 0.78) 100%
-  );
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 24px 60px rgba(0, 0, 0, 0.45);
-}
-
-.glass-soft {
-  background: rgba(15, 20, 36, 0.55);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(148, 163, 184, 0.08);
-}
-
-.glow-text {
-  text-shadow:
-    0 0 16px rgba(34, 211, 238, 0.35),
-    0 0 2px rgba(167, 139, 250, 0.5);
 }
 
 .divider {
@@ -76,17 +67,6 @@ body,
   background: rgba(148, 163, 184, 0.08);
   border: 1px solid rgba(148, 163, 184, 0.18);
   color: #cbd5e1;
-}
-
-.shimmer-bg {
-  background: linear-gradient(
-    90deg,
-    rgba(34, 211, 238, 0) 0%,
-    rgba(34, 211, 238, 0.18) 50%,
-    rgba(34, 211, 238, 0) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 8s linear infinite;
 }
 
 .no-select {

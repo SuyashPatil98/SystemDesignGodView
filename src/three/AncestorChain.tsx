@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-const FLASH_DURATION_S = 1.4;
 import * as THREE from 'three';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { useGraphStore } from '../store/useGraphStore';
 import type { GNode } from '../data/schema';
 import type { Positioned } from './layout';
+
+const FLASH_DURATION_S = 1.4;
 
 interface Props {
   breadcrumbs: GNode[]; // root → ... → selected
@@ -21,6 +23,7 @@ const SEGMENTS_PER_LINK = 22;
 
 export default function AncestorChain({ breadcrumbs, layout }: Props) {
   const { size } = useThree();
+  const palette = useGraphStore((s) => s.palette);
   const lineRef = useRef<LineSegments2 | null>(null);
   const flashStartRef = useRef<number>(0);
   const lastLeafIdRef = useRef<string | null>(null);
@@ -29,10 +32,7 @@ export default function AncestorChain({ breadcrumbs, layout }: Props) {
   const mesh = useMemo(() => {
     if (breadcrumbs.length < 2) return null;
 
-    // Walk root → leaf; for each consecutive pair, sample a bezier and emit
-    // contiguous segment pairs.
     const positions: number[] = [];
-    let leafColor: THREE.Color | null = null;
 
     for (let i = 0; i < breadcrumbs.length - 1; i++) {
       const a = layout.get(breadcrumbs[i].id)?.position;       // parent
@@ -48,9 +48,6 @@ export default function AncestorChain({ breadcrumbs, layout }: Props) {
         positions.push(pts[j].x, pts[j].y, pts[j].z);
         positions.push(pts[j + 1].x, pts[j + 1].y, pts[j + 1].z);
       }
-      if (i === breadcrumbs.length - 2) {
-        leafColor = layout.get(breadcrumbs[i + 1].id)?.color?.clone() ?? null;
-      }
     }
 
     if (positions.length === 0) return null;
@@ -59,7 +56,7 @@ export default function AncestorChain({ breadcrumbs, layout }: Props) {
     geo.setPositions(positions);
 
     const mat = new LineMaterial({
-      color: leafColor ?? new THREE.Color('#ffffff'),
+      color: new THREE.Color('#5EEAB7'), // updated by palette effect below
       linewidth: 4.0,
       transparent: true,
       opacity: 0.0,
@@ -85,6 +82,13 @@ export default function AncestorChain({ breadcrumbs, layout }: Props) {
     const mat = (mesh as LineSegments2).material as LineMaterial;
     mat.resolution.set(size.width, size.height);
   }, [size, mesh]);
+
+  // Palette toggle — retint the line on MINT/IRIS swap.
+  useEffect(() => {
+    if (!mesh) return;
+    const mat = (mesh as LineSegments2).material as LineMaterial;
+    mat.color.set(palette === 'mint' ? '#5EEAB7' : '#B5A0FF');
+  }, [palette, mesh]);
 
   // Trigger a "flash" when the selection (leaf of breadcrumbs) changes — gives
   // search hits and arrow-key jumps an immediate visual punch before settling
