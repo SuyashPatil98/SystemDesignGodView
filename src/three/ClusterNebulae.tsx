@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { computeClusterNebulae } from './layout';
-import { useGraphStore } from '../store/useGraphStore';
+import { computeClusterNebulae, electricColorForCluster } from './layout';
 
 // Large soft glow clouds at each super-cluster centre — the 6 thematic
 // regions now feel like nebulae the domains float inside.
@@ -73,17 +72,18 @@ function NebulaSprite({
   seed,
   baseOpacity,
   ambientOpacity,
+  color,
 }: {
   position: THREE.Vector3;
   scale: number;
   seed: number;
   baseOpacity: number;
   ambientOpacity: number;
+  color: THREE.Color;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.ShaderMaterial>(null);
   const { camera } = useThree();
-  const palette = useGraphStore((s) => s.palette);
 
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -92,22 +92,15 @@ function NebulaSprite({
       uniforms: {
         uTime: { value: 0 },
         uOpacity: { value: baseOpacity * ambientOpacity },
-        uColor: { value: new THREE.Color('#5EEAB7') },
+        uColor: { value: color.clone() },
         uSeed: { value: seed },
       },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-    // base/ambient updated via useFrame so we can transition smoothly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed]);
-
-  // Palette toggle wiring.
-  useEffect(() => {
-    const hex = palette === 'mint' ? '#5EEAB7' : '#B5A0FF';
-    (material.uniforms.uColor.value as THREE.Color).set(hex);
-  }, [palette, material]);
 
   // Cleanup.
   useEffect(() => () => material.dispose(), [material]);
@@ -151,8 +144,9 @@ export default function ClusterNebulae({ ambientOpacity = 1 }: ClusterNebulaePro
           position={n.position}
           scale={150 + i * 8}
           seed={i * 1.7 + 0.31}
-          baseOpacity={0.07}
+          baseOpacity={0.085}
           ambientOpacity={ambientOpacity}
+          color={electricColorForCluster(n.id, 0.95, 0.62)}
         />
       ))}
     </group>

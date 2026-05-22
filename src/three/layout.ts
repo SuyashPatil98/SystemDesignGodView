@@ -306,6 +306,47 @@ export function getClusters(): Cluster[] {
   return CLUSTERS;
 }
 
+// Per-domain electric hue derived from the domain's super-cluster, with a
+// small per-domain offset so neighbouring domains inside the same cluster
+// don't paint identically. Used by the WebGL scene to bring colour back
+// into the galaxy without abandoning the single-accent UI chrome.
+export function clusterHueForDomain(domainId: string): number {
+  const cluster = CLUSTERS.find((c) => c.domainIds.includes(domainId));
+  if (!cluster) return 200;
+  const base = CLUSTER_HUES[cluster.id] ?? 200;
+  // Offset by the domain's index within the cluster — gives 4-8 distinct
+  // tones inside the same family without breaking the family identity.
+  const idx = cluster.domainIds.indexOf(domainId);
+  const span = 22; // ±degrees inside the cluster
+  const t = cluster.domainIds.length > 1
+    ? (idx / (cluster.domainIds.length - 1)) * 2 - 1
+    : 0;
+  return (base + t * span + 360) % 360;
+}
+
+// Convert a domain id to a high-saturation 'electric' colour. Higher
+// lightness/sat than the default to keep things vivid against the dark
+// background; bloom + chromatic aberration finish the job.
+export function electricColorForDomain(
+  domainId: string,
+  sat = 0.92,
+  light = 0.62,
+): THREE.Color {
+  return new THREE.Color().setHSL(clusterHueForDomain(domainId) / 360, sat, light);
+}
+
+export function electricColorForCluster(
+  clusterId: string,
+  sat = 0.9,
+  light = 0.6,
+): THREE.Color {
+  return new THREE.Color().setHSL(
+    ((CLUSTER_HUES[clusterId] ?? 200) / 360),
+    sat,
+    light,
+  );
+}
+
 // Compute world-space centroid + color for each super-cluster, used for the
 // floating region labels.
 export interface ClusterCentroid {

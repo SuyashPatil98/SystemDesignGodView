@@ -198,6 +198,9 @@ interface State {
   // documented text at read time). The source data is never touched.
   overrides: Map<string, NodeOverrides>;
 
+  // Whether the 2D mindmap overlay is open. Toggled from the top bar.
+  mindmap2DOpen: boolean;
+
   select: (id: string | null) => void;
   hover: (id: string | null) => void;
   setMode: (m: Mode) => void;
@@ -249,6 +252,8 @@ interface State {
   setOverride: (nodeId: string, field: OverrideField, text: string) => void;
   clearOverride: (nodeId: string, field: OverrideField) => void;
   clearAllOverrides: () => void;
+
+  setMindmap2DOpen: (b: boolean) => void;
 }
 
 const emptyFilters: Filters = {
@@ -291,6 +296,7 @@ export const useGraphStore = create<State>((set) => ({
   palette: loadPalette(),
   userNotes: loadNotes(),
   overrides: loadOverrides(),
+  mindmap2DOpen: false,
 
   select: (id) => set({ selectedId: id }),
   hover: (id) => set({ hoveredId: id }),
@@ -467,6 +473,8 @@ export const useGraphStore = create<State>((set) => ({
       saveOverrides(new Map());
       return { overrides: new Map() };
     }),
+
+  setMindmap2DOpen: (b) => set({ mindmap2DOpen: b }),
 
   conquer: (id) =>
     set((s) => {

@@ -5,6 +5,7 @@ import LeftPanel from './ui/LeftPanel';
 import NodeDetailOverlay from './ui/NodeDetailOverlay';
 import ModeOverlay from './ui/ModeOverlay';
 import KeyboardHints from './ui/KeyboardHints';
+import MindmapView2D from './ui/MindmapView2D';
 import { useGraphStore } from './store/useGraphStore';
 import {
   graph,
@@ -411,7 +412,10 @@ export default function App() {
       if (tgt && tgt.matches?.('input,textarea')) return;
       switch (e.key) {
         case 'Escape':
-          if (focusedSubtreeId) setFocusedSubtree(null);
+          // 2D map first → focus mode → selection. One step per ESC.
+          if (useGraphStore.getState().mindmap2DOpen) {
+            useGraphStore.getState().setMindmap2DOpen(false);
+          } else if (focusedSubtreeId) setFocusedSubtree(null);
           else select(null);
           break;
         case 'f':
@@ -534,6 +538,12 @@ export default function App() {
       />
 
       <KeyboardHints />
+
+      <MindmapView2D
+        domains={graph.domains}
+        nodes={graph.nodes}
+        onPick={handleSelect}
+      />
 
       {!hasInteracted && !focusedNode && (
         <div

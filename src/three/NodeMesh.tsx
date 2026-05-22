@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useGraphStore } from '../store/useGraphStore';
 import type { GNode } from '../data/schema';
 import type { Positioned } from './layout';
+import { electricColorForDomain } from './layout';
 
 interface Props {
   nodes: GNode[]; // ALL nodes in the dataset — capacity is fixed.
@@ -63,14 +64,17 @@ const VERTEX_SHADER = /* glsl */ `
   attribute float aSize;
   attribute float aBright;
   attribute float aSeed;
+  attribute vec3  aColor;
   uniform float uTime;
   uniform float uPixel;
   uniform float uDrift;
   uniform float uSizeMul;
   varying float vBright;
+  varying vec3  vColor;
 
   void main() {
     vBright = aBright;
+    vColor  = aColor;
     vec3 p = position;
     float t = uTime * 0.00035;
     p.x += sin(t + aSeed) * 0.55 * uDrift;
@@ -86,10 +90,10 @@ const VERTEX_SHADER = /* glsl */ `
 const FRAGMENT_SHADER = /* glsl */ `
   precision mediump float;
   uniform sampler2D uSprite;
-  uniform vec3 uColor;
   uniform float uOpacity;
   uniform float uGlobalAlpha;
   varying float vBright;
+  varying vec3  vColor;
 
   void main() {
     vec4 tex = texture2D(uSprite, gl_PointCoord);
@@ -99,9 +103,10 @@ const FRAGMENT_SHADER = /* glsl */ `
     // instead of soft fuzz that bloom turns into chromatic squares.
     float aShape = pow(tex.a, 1.6);
     float a = aShape * vBright * uOpacity * uGlobalAlpha;
-    vec3 hot = mix(uColor, vec3(1.0), pow(vBright, 4.0) * 0.55);
-    // 2.2 was blowing past the bloom threshold and rainbow-fringing.
-    // 1.25 keeps them bright but stays inside the bloom envelope.
+    // Per-vertex colour (set per-cloud uniformly OR per-pip individually),
+    // then hot-shifted toward white for the brightest core fragments so
+    // dense regions still bloom hot without losing their family hue.
+    vec3 hot = mix(vColor, vec3(1.0), pow(vBright, 4.0) * 0.55);
     gl_FragColor = vec4(hot * vBright * 1.25, a);
   }
 `;
@@ -116,7 +121,6 @@ function makeMaterial(
       uTime: { value: 0 },
       uSprite: { value: sprite },
       uPixel: { value: pixelRatio },
-      uColor: { value: new THREE.Color('#5EEAB7') },
       uDrift: { value: 1.0 },
       uOpacity: { value: opts.opacity ?? 1.0 },
       uSizeMul: { value: opts.sizeMul ?? 1.0 },
@@ -133,9 +137,10 @@ function makeMaterial(
 // ── Per-domain cloud geometry ───────────────────────────────────────────
 function buildDomainCloud(
   domain: GNode,
-  allNodes: GNode[],
+  _allNodes: GNode[],
   layout: Map<string, Positioned>,
   childrenByParent: Map<string, GNode[]>,
+  color: THREE.Color,
 ): THREE.BufferGeometry {
   const center = layout.get(domain.id)?.position;
   const geo = new THREE.BufferGeometry();
@@ -215,6 +220,17 @@ function buildDomainCloud(
     new THREE.Float32BufferAttribute(brightness, 1),
   );
   geo.setAttribute('aSeed', new THREE.Float32BufferAttribute(seeds, 1));
+
+  // Per-vertex colour — every vertex in this cloud gets the same domain
+  // hue; the fragment shader hot-shifts the brightest fragments toward
+  // white so dense regions still read but the family colour persists.
+  const colors = new Float32Array(positions.length);
+  for (let i = 0; i < positions.length / 3; i++) {
+    colors[i * 3 + 0] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
   return geo;
 }
 
@@ -258,7 +274,13 @@ export default function NodeMesh({
   const cloudGeometries = useMemo(
     () =>
       domainNodes.map((d) =>
-        buildDomainCloud(d, nodes, layout, childrenByParent),
+        buildDomainCloud(
+          d,
+          nodes,
+          layout,
+          childrenByParent,
+          electricColorForDomain(d.id),
+        ),
       ),
     [domainNodes, nodes, layout, childrenByParent],
   );
@@ -289,6 +311,10 @@ export default function NodeMesh({
     const sizes = new Float32Array(pipNodes.length); // current (lerped) size
     const brights = new Float32Array(pipNodes.length);
     const seeds = new Float32Array(pipNodes.length);
+    // Per-pip colour, derived from its domain. Cached so we don't construct
+    // a Color per node.
+    const colors = new Float32Array(pipNodes.length * 3);
+    const colorCache = new Map<string, THREE.Color>();
     for (let i = 0; i < pipNodes.length; i++) {
       const n = pipNodes[i];
       const p = layout.get(n.id)?.position;
@@ -299,12 +325,23 @@ export default function NodeMesh({
       sizes[i] = 0;
       brights[i] = n.kind === 'subdomain' ? 0.98 : 0.82;
       seeds[i] = Math.random() * 6.28;
+      // Pips are extra-bright (sat 0.95, lightness 0.66) so they punch
+      // through the cloud they sit inside.
+      let c = colorCache.get(n.domainId);
+      if (!c) {
+        c = electricColorForDomain(n.domainId, 0.95, 0.66);
+        colorCache.set(n.domainId, c);
+      }
+      colors[i * 3 + 0] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
     geo.setAttribute('aBright', new THREE.BufferAttribute(brights, 1));
     geo.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1));
+    geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
     return geo;
   }, [pipNodes, layout]);
   const pipMaterial = useMemo(
@@ -315,12 +352,10 @@ export default function NodeMesh({
   // on change rather than every frame.
   const pipLastDirtyRef = useRef(0);
 
-  // ── Palette toggle wiring (Surface .06 already prepped here) ────────
-  useEffect(() => {
-    const hex = palette === 'mint' ? '#5EEAB7' : '#B5A0FF';
-    for (const m of cloudMaterials) (m.uniforms.uColor.value as THREE.Color).set(hex);
-    (pipMaterial.uniforms.uColor.value as THREE.Color).set(hex);
-  }, [palette, cloudMaterials, pipMaterial]);
+  // Galaxy colours are now per-cluster (electric per-domain hue), not
+  // single-accent. The palette toggle still controls UI chrome via the
+  // CSS vars; the scene reads them at construction time only.
+  void palette;
 
   // Cleanup geometries + materials on unmount or when they change.
   useEffect(() => {

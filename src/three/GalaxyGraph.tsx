@@ -4,7 +4,6 @@ import type { GNode, GEdge } from '../data/schema';
 import type { Positioned } from './layout';
 import NodeMesh from './NodeMesh';
 import EdgeCurves from './EdgeCurves';
-import EdgeFlow from './EdgeFlow';
 import EdgeHoverTargets from './EdgeHoverTargets';
 import LODLabels from './LODLabels';
 import ClusterLabels from './ClusterLabels';
@@ -115,8 +114,6 @@ export default function GalaxyGraph({
         hoveredId={hoveredId}
         conquered={conquered}
       />
-
-      <EdgeFlow edges={visibleEdges} layout={layout} conquered={conquered} />
 
       <EdgeHoverTargets
         edges={visibleEdges}

@@ -31,6 +31,8 @@ export default function TopBar({ nodes, onPickNode }: Props) {
   const setPalette = useGraphStore((s) => s.setPalette);
   const mobileMenuOpen = useGraphStore((s) => s.mobileMenuOpen);
   const setMobileMenuOpen = useGraphStore((s) => s.setMobileMenuOpen);
+  const mindmap2DOpen = useGraphStore((s) => s.mindmap2DOpen);
+  const setMindmap2DOpen = useGraphStore((s) => s.setMindmap2DOpen);
 
   const total = nodes.filter((n) => n.kind !== 'domain').length;
   const done = nodes.filter(
@@ -147,13 +149,65 @@ export default function TopBar({ nodes, onPickNode }: Props) {
         })}
       </nav>
 
-      {/* ── Right cluster: search + palette + conquest ─────────────────── */}
+      {/* ── Mobile-only right slot: 2D map button. The full desktop
+            right cluster (search + palette + conquest) is hidden on
+            small screens, so the 2D toggle is the one always-visible
+            chrome action on mobile besides the hamburger. */}
+      <div className="md:hidden flex items-center justify-end">
+        <Map2DButton
+          active={mindmap2DOpen}
+          onClick={() => setMindmap2DOpen(!mindmap2DOpen)}
+        />
+      </div>
+
+      {/* ── Right cluster: search + palette + 2D + conquest ────────────── */}
       <div className="hidden md:flex items-center justify-end gap-6">
         <SearchBox nodes={nodes} onPickNode={onPickNode} />
+        <Map2DButton
+          active={mindmap2DOpen}
+          onClick={() => setMindmap2DOpen(!mindmap2DOpen)}
+        />
         <PaletteToggle active={palette} onChange={setPalette} />
         <ConquestCounter done={done} total={total} />
       </div>
     </header>
+  );
+}
+
+// ── 2D Map toggle ──────────────────────────────────────────────────────────
+function Map2DButton({
+  active,
+  onClick,
+}: {
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label="Toggle 2D mindmap view"
+      title="2D map"
+      className="font-mono uppercase transition-colors"
+      style={{
+        fontSize: 9,
+        letterSpacing: '0.24em',
+        padding: '6px 10px',
+        color: active ? '#fff' : ACCENT,
+        border: `1px solid ${active ? ACCENT : ACCENT_DIM}`,
+        background: active ? 'rgba(94,234,183,0.12)' : 'transparent',
+        cursor: 'pointer',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.color = '#fff';
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.color = ACCENT;
+      }}
+    >
+      2D
+    </button>
   );
 }
 
