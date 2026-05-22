@@ -13,6 +13,7 @@ const shortcuts: [string, string][] = [
   ['F', 'Re-focus selected'],
   ['C', 'Reset camera'],
   ['1-8', 'Switch mode'],
+  ['Z', 'Zen mode (hide chrome)'],
 ];
 
 const mouseRows: [string, string][] = [

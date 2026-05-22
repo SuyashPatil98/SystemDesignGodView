@@ -425,6 +425,16 @@ export default function App() {
         case 'c':
           setFocus([0, 0, 0]);
           break;
+        case 'z': {
+          // Zen mode — collapse both chrome panels in one keystroke,
+          // or expand both if anything was open. Mirrors the visible
+          // ▴ / ▾ and ◂ / ▸ tabs but flips them together.
+          const s = useGraphStore.getState();
+          const anyOpen = !s.navigatorCollapsed || !s.topbarCollapsed;
+          s.setNavigatorCollapsed(anyOpen);
+          s.setTopbarCollapsed(anyOpen);
+          break;
+        }
         case '1': setMode('galaxy'); break;
         case '2': setMode('learning-path'); break;
         case '3': setMode('project'); break;
