@@ -252,6 +252,13 @@ interface State {
   setOverride: (nodeId: string, field: OverrideField, text: string) => void;
   clearOverride: (nodeId: string, field: OverrideField) => void;
   clearAllOverrides: () => void;
+  // Bulk-apply a remote store payload (used by the sync layer). Replaces
+  // both notes and overrides in one set call and persists both to local-
+  // Storage so subsequent reloads see the synced state immediately.
+  applyRemoteStore: (payload: {
+    notes: Record<string, string>;
+    overrides: Record<string, NodeOverrides>;
+  }) => void;
 
   setMindmap2DOpen: (b: boolean) => void;
 }
@@ -472,6 +479,23 @@ export const useGraphStore = create<State>((set) => ({
     set(() => {
       saveOverrides(new Map());
       return { overrides: new Map() };
+    }),
+  applyRemoteStore: ({ notes, overrides }) =>
+    set(() => {
+      const nm = new Map<string, string>();
+      for (const k of Object.keys(notes ?? {})) {
+        if (typeof notes[k] === 'string' && notes[k].trim()) {
+          nm.set(k, notes[k]);
+        }
+      }
+      const om = new Map<string, NodeOverrides>();
+      for (const k of Object.keys(overrides ?? {})) {
+        const v = overrides[k];
+        if (v && typeof v === 'object') om.set(k, v);
+      }
+      saveNotes(nm);
+      saveOverrides(om);
+      return { userNotes: nm, overrides: om };
     }),
 
   setMindmap2DOpen: (b) => set({ mindmap2DOpen: b }),

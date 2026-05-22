@@ -1,6 +1,7 @@
 import { Menu, X } from 'lucide-react';
 import { useGraphStore } from '../store/useGraphStore';
 import SearchBox from './SearchBox';
+import SyncChip from './SyncChip';
 import type { Mode, GNode } from '../data/schema';
 import type { Palette as StorePalette } from '../store/useGraphStore';
 
@@ -149,20 +150,21 @@ export default function TopBar({ nodes, onPickNode }: Props) {
         })}
       </nav>
 
-      {/* ── Mobile-only right slot: 2D map button. The full desktop
-            right cluster (search + palette + conquest) is hidden on
-            small screens, so the 2D toggle is the one always-visible
-            chrome action on mobile besides the hamburger. */}
-      <div className="md:hidden flex items-center justify-end">
+      {/* ── Mobile-only right slot: sync + 2D buttons. The full desktop
+            right cluster is hidden on small screens, so these are the
+            only always-visible chrome actions besides the hamburger. */}
+      <div className="md:hidden flex items-center justify-end gap-2">
+        <SyncChip />
         <Map2DButton
           active={mindmap2DOpen}
           onClick={() => setMindmap2DOpen(!mindmap2DOpen)}
         />
       </div>
 
-      {/* ── Right cluster: search + palette + 2D + conquest ────────────── */}
-      <div className="hidden md:flex items-center justify-end gap-6">
+      {/* ── Right cluster: search + sync + 2D + palette + conquest ──── */}
+      <div className="hidden md:flex items-center justify-end gap-5">
         <SearchBox nodes={nodes} onPickNode={onPickNode} />
+        <SyncChip />
         <Map2DButton
           active={mindmap2DOpen}
           onClick={() => setMindmap2DOpen(!mindmap2DOpen)}
