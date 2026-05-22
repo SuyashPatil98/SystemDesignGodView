@@ -20,9 +20,8 @@ import { computeLayout } from './three/layout';
 import { breadcrumbs as bcrumbs } from './lib/breadcrumbs';
 import { emphasizedIds } from './lib/modes';
 import { focusSubtreeIds } from './lib/subtree';
-import { Focus, X, MousePointerClick, MapPin } from 'lucide-react';
+import { Focus, X, MousePointerClick } from 'lucide-react';
 import type { GNode } from './data/schema';
-import { getClusters } from './three/layout';
 import OnboardingTour from './ui/OnboardingTour';
 import ComparePanel from './ui/ComparePanel';
 import QuizModal from './ui/QuizModal';
@@ -78,7 +77,6 @@ export default function App() {
   const toggleSubdomainExpanded = useGraphStore((s) => s.toggleSubdomainExpanded);
   const hasInteracted = useGraphStore((s) => s.hasInteracted);
   const markInteracted = useGraphStore((s) => s.markInteracted);
-  const nearestDomainId = useGraphStore((s) => s.nearestDomainId);
   const setActivePath = useGraphStore((s) => s.setActivePath);
   const setActiveProject = useGraphStore((s) => s.setActiveProject);
   const setActiveTradeoff = useGraphStore((s) => s.setActiveTradeoff);
@@ -588,39 +586,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* "You are here" — only when user has started exploring and isn't in
-          focus mode (focus chip already occupies that slot), and not while
-          the detail overlay is open (its breadcrumb header replaces this). */}
-      {hasInteracted && !focusedNode && !selectedId && nearestDomainId && (() => {
-        const domain = domainById.get(nearestDomainId);
-        if (!domain) return null;
-        const cluster = getClusters().find((c) =>
-          c.domainIds.includes(nearestDomainId),
-        );
-        return (
-          <div className="pointer-events-none absolute left-1/2 top-[80px] z-10 -translate-x-1/2 select-none">
-            <div
-              className="flex items-center gap-2 border border-white/10 bg-black/55 px-3 py-1.5 font-mono uppercase backdrop-blur"
-              style={{ fontSize: 10, letterSpacing: '0.22em' }}
-            >
-              <MapPin size={11} style={{ color: 'var(--mint)' }} />
-              {cluster && (
-                <>
-                  <span className="text-white/40">{cluster.name}</span>
-                  <span className="text-white/20">/</span>
-                </>
-              )}
-              <span
-                className="text-white"
-                style={{ textShadow: '0 0 10px var(--mint-dim)' }}
-              >
-                {domain.name}
-              </span>
-            </div>
-          </div>
-        );
-      })()}
 
       <OnboardingTour />
 
