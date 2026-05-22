@@ -34,18 +34,27 @@ export default function TopBar({ nodes, onPickNode }: Props) {
   const setMobileMenuOpen = useGraphStore((s) => s.setMobileMenuOpen);
   const mindmap2DOpen = useGraphStore((s) => s.mindmap2DOpen);
   const setMindmap2DOpen = useGraphStore((s) => s.setMindmap2DOpen);
+  const navigatorCollapsed = useGraphStore((s) => s.navigatorCollapsed);
 
   const total = nodes.filter((n) => n.kind !== 'domain').length;
   const done = nodes.filter(
     (n) => n.kind !== 'domain' && conquered.has(n.id),
   ).length;
 
+  // When the navigator is collapsed on desktop the wordmark column
+  // no longer needs 300px reserved for it — let the mode strip + right
+  // cluster spread into that space. On mobile we keep the simple
+  // 1fr_auto layout regardless.
+  const desktopCols = navigatorCollapsed
+    ? 'md:grid-cols-[auto_1fr_auto]'
+    : 'md:grid-cols-[300px_1fr_auto]';
+
   return (
     <header
-      className="pointer-events-auto absolute left-0 right-0 top-0 z-20
+      className={`pointer-events-auto absolute left-0 right-0 top-0 z-20
                  grid items-center gap-8
-                 grid-cols-[1fr_auto] md:grid-cols-[300px_1fr_auto]
-                 border-b px-5 py-4 md:px-10 md:py-5"
+                 grid-cols-[1fr_auto] ${desktopCols}
+                 border-b px-5 py-4 md:px-10 md:py-5`}
       style={{
         borderColor: 'rgba(255,255,255,0.05)',
         // Translucent + frosted when the mobile menu is open so the galaxy
@@ -101,8 +110,8 @@ export default function TopBar({ nodes, onPickNode }: Props) {
         </div>
       </div>
 
-      {/* ── Mode strip ─────────────────────────────────────────────────── */}
-      <nav className="hidden md:flex items-baseline justify-center gap-7">
+      {/* ── Mode strip — tight gaps on iPad/narrow desktop, normal at lg+ */}
+      <nav className="hidden md:flex items-baseline justify-center gap-3 lg:gap-7">
         {MODES.map((m) => {
           const isActive = mode === m.id;
           return (
@@ -169,9 +178,14 @@ export default function TopBar({ nodes, onPickNode }: Props) {
         />
       </div>
 
-      {/* ── Right cluster: search + sync + 2D + palette + conquest ──── */}
-      <div className="hidden md:flex items-center justify-end gap-5">
-        <SearchBox nodes={nodes} onPickNode={onPickNode} />
+      {/* ── Right cluster: search + sync + 2D + palette + conquest ────
+            Tight gaps on iPad portrait/narrow desktop, normal at lg+.
+            SearchBox hidden until lg+ — '/' shortcut still focuses it
+            (it always renders, just visually hidden). */}
+      <div className="hidden md:flex items-center justify-end gap-3 lg:gap-5">
+        <div className="hidden lg:block">
+          <SearchBox nodes={nodes} onPickNode={onPickNode} />
+        </div>
         <SyncChip />
         <Map2DButton
           active={mindmap2DOpen}

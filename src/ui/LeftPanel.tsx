@@ -95,6 +95,8 @@ export default function LeftPanel({
   const expandAll = useGraphStore((s) => s.expandAll);
   const collapseAll = useGraphStore((s) => s.collapseAll);
   const mobileMenuOpen = useGraphStore((s) => s.mobileMenuOpen);
+  const navigatorCollapsed = useGraphStore((s) => s.navigatorCollapsed);
+  const setNavigatorCollapsed = useGraphStore((s) => s.setNavigatorCollapsed);
 
   const filtersActive =
     filters.domainIds.size > 0 ||
@@ -155,6 +157,41 @@ export default function LeftPanel({
   const isAllCollapsed =
     expandedDomainIds.size === 0 && expandedSubdomainIds.size === 0;
 
+  // Desktop "collapsed" handle — small pill at the left edge that
+  // expands the navigator. Mobile uses the hamburger; this is desktop-
+  // only (md:flex). Renders only when collapsed AND we're not in a
+  // mobile-menu-open state (mobile always shows the full panel via
+  // the hamburger toggle).
+  const collapsedHandle = navigatorCollapsed && !mobileMenuOpen && (
+    <button
+      type="button"
+      onClick={() => setNavigatorCollapsed(false)}
+      aria-label="Expand navigator"
+      title="Expand navigator"
+      className="pointer-events-auto absolute hidden md:flex items-center justify-center font-mono uppercase transition-colors z-[25]"
+      style={{
+        top: 104,
+        left: 0,
+        width: 28,
+        height: 36,
+        fontSize: 11,
+        color: ACCENT,
+        background: 'rgba(0,0,0,0.78)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderLeft: 'none',
+        cursor: 'pointer',
+      }}
+    >
+      ▸
+    </button>
+  );
+
+  // While collapsed on desktop, the full aside doesn't render — only
+  // the handle. Mobile menu open still forces the full panel.
+  if (navigatorCollapsed && !mobileMenuOpen) {
+    return <>{collapsedHandle}</>;
+  }
+
   return (
     <aside
       // z-[25] sits above any drei <Html> label inside the canvas
@@ -177,6 +214,34 @@ export default function LeftPanel({
         borderRight: '1px solid rgba(255,255,255,0.04)',
       }}
     >
+      {/* Desktop collapse button — small ◂ at the top-right of the
+          navigator that hides the whole column. Mobile uses the
+          hamburger close in the top bar instead. */}
+      <button
+        type="button"
+        onClick={() => setNavigatorCollapsed(true)}
+        aria-label="Collapse navigator"
+        title="Collapse navigator"
+        className="hidden md:flex items-center justify-center absolute font-mono uppercase transition-colors"
+        style={{
+          top: 12,
+          right: 12,
+          width: 24,
+          height: 24,
+          fontSize: 11,
+          color: 'rgba(255,255,255,0.55)',
+          background: 'transparent',
+          border: '1px solid rgba(255,255,255,0.08)',
+          cursor: 'pointer',
+          zIndex: 2,
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = '#fff')}
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')
+        }
+      >
+        ◂
+      </button>
       <div className="flex-1 overflow-y-auto px-8 py-9">
         <SectionHead n=".N1" label="NAVIGATOR" />
 

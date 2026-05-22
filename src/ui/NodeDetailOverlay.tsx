@@ -34,6 +34,7 @@ export default function NodeDetailOverlay({
 }: Props) {
   const selectedId = useGraphStore((s) => s.selectedId);
   const conquered = useGraphStore((s) => s.conquered);
+  const navigatorCollapsed = useGraphStore((s) => s.navigatorCollapsed);
   const toggleConquered = useGraphStore((s) => s.toggleConquered);
   const focusedSubtreeId = useGraphStore((s) => s.focusedSubtreeId);
   const setFocusedSubtree = useGraphStore((s) => s.setFocusedSubtree);
@@ -285,13 +286,16 @@ export default function NodeDetailOverlay({
         ×
       </button>
 
-      {/* Left column — title block. Anchored past the 300px navigator on
-          desktop; on mobile the navigator is hidden, so a media-query
-          override (.ndo-left) snaps it back to the left margin. */}
+      {/* Left column — title block. Normally anchored past the 300px
+          navigator on desktop; when the user collapses the navigator,
+          it shifts back to the edge. On mobile a media-query override
+          (.ndo-left) snaps it to the left margin regardless. */}
       <div
         className="ndo-left pointer-events-auto absolute z-10 px-6 md:px-0"
         style={{
-          left: 'clamp(24px, 24vw, 340px)',
+          left: navigatorCollapsed
+            ? 'clamp(24px, 4vw, 64px)'
+            : 'clamp(24px, 24vw, 340px)',
           top: '34%',
           maxWidth: 500,
         }}
@@ -452,7 +456,9 @@ export default function NodeDetailOverlay({
         <div
           className="ndo-rel pointer-events-auto absolute z-10 hidden md:block"
           style={{
-            left: 'clamp(24px, 24vw, 340px)',
+            left: navigatorCollapsed
+              ? 'clamp(24px, 4vw, 64px)'
+              : 'clamp(24px, 24vw, 340px)',
             bottom: 36,
             maxWidth: 'min(560px, 60vw)',
           }}

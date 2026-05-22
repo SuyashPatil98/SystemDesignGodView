@@ -5,6 +5,20 @@ const LS_KEY = 'tech-galaxy/conquered/v1';
 const PALETTE_KEY = 'godview.palette.v1';
 const NOTES_KEY = 'godview.notes.v1';
 const OVERRIDES_KEY = 'godview.overrides.v1';
+const NAV_COLLAPSED_KEY = 'godview.navCollapsed.v1';
+
+function loadNavCollapsed(): boolean {
+  try {
+    return localStorage.getItem(NAV_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function saveNavCollapsed(b: boolean) {
+  try {
+    localStorage.setItem(NAV_COLLAPSED_KEY, b ? '1' : '0');
+  } catch {}
+}
 
 // ───────────────────── Palette (Surface .01) ─────────────────────
 // The redesign uses a single accent — `--mint` — that is rebound between two
@@ -201,6 +215,11 @@ interface State {
   // Whether the 2D mindmap overlay is open. Toggled from the top bar.
   mindmap2DOpen: boolean;
 
+  // Desktop navigator collapsed state. Mobile uses the hamburger flag
+  // instead (mobileMenuOpen). Persisted to localStorage so the user's
+  // preference survives reloads.
+  navigatorCollapsed: boolean;
+
   select: (id: string | null) => void;
   hover: (id: string | null) => void;
   setMode: (m: Mode) => void;
@@ -261,6 +280,7 @@ interface State {
   }) => void;
 
   setMindmap2DOpen: (b: boolean) => void;
+  setNavigatorCollapsed: (b: boolean) => void;
 }
 
 const emptyFilters: Filters = {
@@ -304,6 +324,7 @@ export const useGraphStore = create<State>((set) => ({
   userNotes: loadNotes(),
   overrides: loadOverrides(),
   mindmap2DOpen: false,
+  navigatorCollapsed: loadNavCollapsed(),
 
   select: (id) => set({ selectedId: id }),
   hover: (id) => set({ hoveredId: id }),
@@ -499,6 +520,10 @@ export const useGraphStore = create<State>((set) => ({
     }),
 
   setMindmap2DOpen: (b) => set({ mindmap2DOpen: b }),
+  setNavigatorCollapsed: (b) => {
+    saveNavCollapsed(b);
+    set({ navigatorCollapsed: b });
+  },
 
   conquer: (id) =>
     set((s) => {
