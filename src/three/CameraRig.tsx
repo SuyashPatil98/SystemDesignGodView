@@ -111,8 +111,14 @@ export default function CameraRig() {
       Math.abs(target.x) < 0.001 &&
       Math.abs(target.y) < 0.001 &&
       Math.abs(target.z) < 0.001;
+    // Caller-supplied framing distance (set by handleSelect based on node
+    // kind) wins for non-origin targets — concepts get a tight zoom,
+    // domains stay wide. Origin still uses the "step back to see it all"
+    // fallback so 'C' (reset camera) reads as zooming out.
     const desiredDist = isOrigin
       ? Math.max(180, currentDist)
+      : focusDistance != null
+      ? focusDistance
       : target.length() < 30
       ? 50
       : 35;
@@ -131,7 +137,7 @@ export default function CameraRig() {
     tween.current.active = true;
     ctrl.enabled = false;
     lastInteraction.current = performance.now();
-  }, [focus, focusToken, camera]);
+  }, [focus, focusToken, focusDistance, camera]);
 
   // ─── Pre-allocated scratch vectors for hot loop ───
   const forward = useRef(new THREE.Vector3());

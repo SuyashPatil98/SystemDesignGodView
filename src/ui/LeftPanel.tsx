@@ -90,6 +90,8 @@ export default function LeftPanel({
 
   const expandedDomainIds = useGraphStore((s) => s.expandedDomainIds);
   const expandedSubdomainIds = useGraphStore((s) => s.expandedSubdomainIds);
+  const toggleDomainExpanded = useGraphStore((s) => s.toggleDomainExpanded);
+  const toggleConquered = useGraphStore((s) => s.toggleConquered);
   const expandAll = useGraphStore((s) => s.expandAll);
   const collapseAll = useGraphStore((s) => s.collapseAll);
   const mobileMenuOpen = useGraphStore((s) => s.mobileMenuOpen);
@@ -199,9 +201,14 @@ export default function LeftPanel({
 
         <DomainList
           domains={domains}
+          allNodes={allNodes}
           stats={domainStats}
           activeFilterIds={filters.domainIds}
+          expandedDomainIds={expandedDomainIds}
+          conquered={conquered}
           onToggleFilter={toggleDomain}
+          onToggleExpanded={toggleDomainExpanded}
+          onToggleConquered={toggleConquered}
           onPick={onPick}
         />
 
@@ -612,17 +619,71 @@ function ConquestBlock({ done, total }: { done: number; total: number }) {
 
 function DomainList({
   domains,
+  allNodes,
   stats,
   activeFilterIds,
+  expandedDomainIds,
+  conquered,
   onToggleFilter,
+  onToggleExpanded,
+  onToggleConquered,
   onPick,
 }: {
   domains: Domain[];
+  allNodes: GNode[];
   stats: Map<string, { total: number; done: number }>;
   activeFilterIds: Set<string>;
+  expandedDomainIds: Set<string>;
+  conquered: Set<string>;
   onToggleFilter: (id: string) => void;
+  onToggleExpanded: (id: string) => void;
+  onToggleConquered: (id: string) => void;
   onPick: (id: string) => void;
 }) {
+  // Group subdomains by their parent domain id — computed once per render.
+  // Subdomain children of each subdomain are summarised as 'n/m conquered'
+  // so each subtopic row carries its own little progress signal.
+  const subsByDomain = useMemo(() => {
+    const m = new Map<string, GNode[]>();
+    for (const n of allNodes) {
+      if (n.kind !== 'subdomain') continue;
+      const arr = m.get(n.domainId) ?? [];
+      arr.push(n);
+      m.set(n.domainId, arr);
+    }
+    return m;
+  }, [allNodes]);
+
+  const childCounts = useMemo(() => {
+    // total + conquered descendants per subdomain id (concepts, patterns,
+    // metrics, tools, failureModes that live under it).
+    const totals = new Map<string, { total: number; done: number }>();
+    for (const sub of allNodes) {
+      if (sub.kind !== 'subdomain') continue;
+      let total = 0;
+      let done = 0;
+      for (const n of allNodes) {
+        if (n.kind === 'domain' || n.kind === 'subdomain') continue;
+        // Walk one level up. If the parent is this subdomain, count it.
+        if (n.parentId === sub.id) {
+          total++;
+          if (conquered.has(n.id)) done++;
+          continue;
+        }
+        // Two levels deep — concept → subdomain.
+        if (n.parentId) {
+          const parent = allNodes.find((x) => x.id === n.parentId);
+          if (parent && parent.parentId === sub.id) {
+            total++;
+            if (conquered.has(n.id)) done++;
+          }
+        }
+      }
+      totals.set(sub.id, { total, done });
+    }
+    return totals;
+  }, [allNodes, conquered]);
+
   return (
     <div className="mt-6 flex flex-col gap-1.5">
       <div
@@ -642,6 +703,8 @@ function DomainList({
         const pct = total > 0 ? done / total : 0;
         const active = activeFilterIds.has(d.id);
         const hasDone = done > 0;
+        const expanded = expandedDomainIds.has(d.id);
+        const subs = subsByDomain.get(d.id) ?? [];
 
         const nameColor = active
           ? ACCENT
@@ -653,88 +716,232 @@ function DomainList({
           : 'rgba(255,255,255,0.32)';
 
         return (
-          <div
-            key={d.id}
-            className="group flex items-baseline gap-2 py-1"
-            style={{ background: 'transparent' }}
-          >
-            {/* Filter toggle — small dot on the left, hidden affordance */}
-            <button
-              type="button"
-              onClick={() => onToggleFilter(d.id)}
-              aria-label={`${active ? 'Clear' : 'Filter to'} ${d.name}`}
-              title={active ? 'Clear filter' : 'Filter to this domain'}
-              className="shrink-0 transition-colors"
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: '50%',
-                background: active ? ACCENT : 'transparent',
-                border: `1px solid ${active ? ACCENT : 'rgba(255,255,255,0.25)'}`,
-                cursor: 'pointer',
-                padding: 0,
-                alignSelf: 'center',
-              }}
-            />
-            {/* Primary action — navigate to this domain */}
-            <button
-              type="button"
-              onClick={() => onPick(d.id)}
-              className="flex-1 text-left transition-colors"
-              style={{
-                background: 'transparent',
-                cursor: 'pointer',
-                paddingRight: 6,
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.color = '#fff')
-              }
-              onMouseLeave={(e) => (e.currentTarget.style.color = '')}
-            >
-              <div className="flex items-baseline justify-between gap-3">
-                <span
-                  className="font-sans"
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 400,
-                    letterSpacing: '0.01em',
-                    color: nameColor,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  {d.name}
-                </span>
-                <span
-                  className="font-mono shrink-0"
-                  style={{
-                    fontSize: 9,
-                    letterSpacing: '0.08em',
-                    color: fracColor,
-                  }}
-                >
-                  {String(done).padStart(2, '0')}/{String(total).padStart(2, '0')}
-                </span>
-              </div>
-              <div
-                className="mt-1"
+          <div key={d.id} style={{ background: 'transparent' }}>
+            <div className="group flex items-baseline gap-2 py-1">
+              {/* Filter toggle — small dot on the left, hidden affordance */}
+              <button
+                type="button"
+                onClick={() => onToggleFilter(d.id)}
+                aria-label={`${active ? 'Clear' : 'Filter to'} ${d.name}`}
+                title={active ? 'Clear filter' : 'Filter to this domain'}
+                className="shrink-0 transition-colors"
                 style={{
-                  height: 1,
-                  width: '100%',
-                  background: 'rgba(255,255,255,0.05)',
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  background: active ? ACCENT : 'transparent',
+                  border: `1px solid ${active ? ACCENT : 'rgba(255,255,255,0.25)'}`,
+                  cursor: 'pointer',
+                  padding: 0,
+                  alignSelf: 'center',
+                }}
+              />
+              {/* Primary action — navigate to this domain */}
+              <button
+                type="button"
+                onClick={() => onPick(d.id)}
+                className="flex-1 text-left transition-colors"
+                style={{
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  paddingRight: 6,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#fff')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '')}
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span
+                    className="font-sans"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 400,
+                      letterSpacing: '0.01em',
+                      color: nameColor,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {d.name}
+                  </span>
+                  <span
+                    className="font-mono shrink-0"
+                    style={{
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                      color: fracColor,
+                    }}
+                  >
+                    {String(done).padStart(2, '0')}/{String(total).padStart(2, '0')}
+                  </span>
+                </div>
+                <div
+                  className="mt-1"
+                  style={{
+                    height: 1,
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.05)',
+                  }}
+                >
+                  <div
+                    className="h-full transition-[width] duration-300"
+                    style={{
+                      width: `${pct * 100}%`,
+                      background: ACCENT,
+                      opacity: 0.7,
+                    }}
+                  />
+                </div>
+              </button>
+              {/* Expand chevron — shows the subtopic list inline */}
+              {subs.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onToggleExpanded(d.id)}
+                  aria-label={
+                    expanded
+                      ? `Collapse ${d.name} subtopics`
+                      : `Expand ${d.name} subtopics`
+                  }
+                  title={expanded ? 'Collapse' : 'Show subtopics'}
+                  className="shrink-0 font-mono transition-colors"
+                  style={{
+                    fontSize: 10,
+                    width: 14,
+                    height: 14,
+                    color: expanded
+                      ? ACCENT
+                      : 'rgba(255,255,255,0.4)',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    padding: 0,
+                    alignSelf: 'center',
+                    lineHeight: 1,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = '#fff')}
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = expanded
+                      ? ACCENT
+                      : 'rgba(255,255,255,0.4)')
+                  }
+                >
+                  {expanded ? '▾' : '▸'}
+                </button>
+              )}
+            </div>
+
+            {/* Subtopic dropdown */}
+            {expanded && subs.length > 0 && (
+              <div
+                className="mb-2 mt-0.5 flex flex-col"
+                style={{
+                  paddingLeft: 13,
+                  marginLeft: 2,
+                  borderLeft: '1px solid rgba(255,255,255,0.06)',
                 }}
               >
-                <div
-                  className="h-full transition-[width] duration-300"
-                  style={{
-                    width: `${pct * 100}%`,
-                    background: ACCENT,
-                    opacity: 0.7,
-                  }}
-                />
+                {subs.map((sub) => {
+                  const cc = childCounts.get(sub.id) ?? { total: 0, done: 0 };
+                  const isConq = conquered.has(sub.id);
+                  return (
+                    <div
+                      key={sub.id}
+                      className="flex items-baseline gap-2 py-0.5"
+                    >
+                      {/* Tick checkbox */}
+                      <button
+                        type="button"
+                        onClick={() => onToggleConquered(sub.id)}
+                        aria-label={`${isConq ? 'Unmark' : 'Mark'} ${sub.name} as conquered`}
+                        title={
+                          isConq
+                            ? 'Conquered — click to unmark'
+                            : 'Mark as conquered'
+                        }
+                        className="shrink-0 font-mono transition-colors"
+                        style={{
+                          width: 12,
+                          height: 12,
+                          fontSize: 9,
+                          lineHeight: 1,
+                          textAlign: 'center',
+                          color: isConq ? ACCENT : 'rgba(255,255,255,0.4)',
+                          border: `1px solid ${
+                            isConq ? ACCENT : 'rgba(255,255,255,0.18)'
+                          }`,
+                          background: isConq
+                            ? 'rgba(94,234,183,0.08)'
+                            : 'transparent',
+                          cursor: 'pointer',
+                          padding: 0,
+                          alignSelf: 'center',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.borderColor = ACCENT)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.borderColor = isConq
+                            ? ACCENT
+                            : 'rgba(255,255,255,0.18)')
+                        }
+                      >
+                        {isConq ? '✓' : ''}
+                      </button>
+                      {/* Name — clickable to navigate */}
+                      <button
+                        type="button"
+                        onClick={() => onPick(sub.id)}
+                        className="flex-1 text-left transition-colors"
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 400,
+                          letterSpacing: '0.01em',
+                          color: isConq
+                            ? 'rgba(255,255,255,0.55)'
+                            : 'rgba(255,255,255,0.82)',
+                          textDecoration: isConq ? 'line-through' : 'none',
+                          textDecorationColor: ACCENT_DIM,
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          padding: '1px 0',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.color = '#fff')
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.color = isConq
+                            ? 'rgba(255,255,255,0.55)'
+                            : 'rgba(255,255,255,0.82)')
+                        }
+                      >
+                        {sub.name}
+                      </button>
+                      {cc.total > 0 && (
+                        <span
+                          className="font-mono shrink-0"
+                          style={{
+                            fontSize: 8,
+                            letterSpacing: '0.08em',
+                            color:
+                              cc.done > 0
+                                ? ACCENT_DIM
+                                : 'rgba(255,255,255,0.25)',
+                          }}
+                        >
+                          {cc.done}/{cc.total}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </button>
+            )}
           </div>
         );
       })}

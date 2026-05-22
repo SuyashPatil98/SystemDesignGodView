@@ -21,11 +21,34 @@ import { breadcrumbs as bcrumbs } from './lib/breadcrumbs';
 import { emphasizedIds } from './lib/modes';
 import { focusSubtreeIds } from './lib/subtree';
 import { Focus, X, MousePointerClick, MapPin } from 'lucide-react';
+import type { GNode } from './data/schema';
 import { getClusters } from './three/layout';
 import OnboardingTour from './ui/OnboardingTour';
 import ComparePanel from './ui/ComparePanel';
 import QuizModal from './ui/QuizModal';
 import { parseUrl, replaceUrl } from './lib/urlState';
+
+// Per-kind framing distance — wider for domains so the cluster reads,
+// tight for leaves so the camera actually moves when you drill in.
+// Without this every focus snaps to ~35 units regardless of kind, which
+// makes clicking subdomains/concepts look like nothing happened (their
+// position is only a few units off the parent domain).
+function focusDistanceForKind(kind: GNode['kind'] | undefined): number {
+  switch (kind) {
+    case 'domain':
+      return 55;
+    case 'subdomain':
+      return 22;
+    case 'concept':
+    case 'pattern':
+    case 'tool':
+    case 'metric':
+    case 'failureMode':
+      return 10;
+    default:
+      return 30;
+  }
+}
 
 export default function App() {
   const layout = useMemo(
@@ -154,7 +177,7 @@ export default function App() {
         state.markInteracted();
       }
       const pos = layout.get(id)?.position;
-      if (pos) setFocus([pos.x, pos.y, pos.z]);
+      if (pos) setFocus([pos.x, pos.y, pos.z], focusDistanceForKind(node?.kind));
       select(id);
     },
     [layout, setFocus, select],
@@ -181,7 +204,7 @@ export default function App() {
       markInteracted();
     }
     const pos = layout.get(selectedId)?.position;
-    if (pos) setFocus([pos.x, pos.y, pos.z]);
+    if (pos) setFocus([pos.x, pos.y, pos.z], focusDistanceForKind(node?.kind));
   }, [selectedId, layout, setFocus, markInteracted]);
 
   const breadcrumbs = useMemo(
