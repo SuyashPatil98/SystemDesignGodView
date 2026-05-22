@@ -4,7 +4,6 @@ import TopBar from './ui/TopBar';
 import LeftPanel from './ui/LeftPanel';
 import NodeDetailOverlay from './ui/NodeDetailOverlay';
 import ModeOverlay from './ui/ModeOverlay';
-import Minimap from './ui/Minimap';
 import KeyboardHints from './ui/KeyboardHints';
 import { useGraphStore } from './store/useGraphStore';
 import {
@@ -67,8 +66,6 @@ export default function App() {
   const hover = useGraphStore((s) => s.hover);
   const setFocus = useGraphStore((s) => s.setFocus);
   const setMode = useGraphStore((s) => s.setMode);
-  const setShowMinimap = useGraphStore((s) => s.setShowMinimap);
-  const showMinimap = useGraphStore((s) => s.showMinimap);
   const conquered = useGraphStore((s) => s.conquered);
   const showOnlyConquered = useGraphStore((s) => s.showOnlyConquered);
   const showOnlyUnconquered = useGraphStore((s) => s.showOnlyUnconquered);
@@ -426,9 +423,6 @@ export default function App() {
         case 'c':
           setFocus([0, 0, 0]);
           break;
-        case 'm':
-          setShowMinimap(!showMinimap);
-          break;
         case '1': setMode('galaxy'); break;
         case '2': setMode('learning-path'); break;
         case '3': setMode('project'); break;
@@ -488,7 +482,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedId, layout, setFocus, setMode, select, setShowMinimap, showMinimap, focusedSubtreeId, setFocusedSubtree, handleSelect, childrenByParent]);
+  }, [selectedId, layout, setFocus, setMode, select, focusedSubtreeId, setFocusedSubtree, handleSelect, childrenByParent]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -539,13 +533,6 @@ export default function App() {
         onSelect={handleSelect}
       />
 
-      <Minimap
-        nodes={graph.nodes}
-        layout={layout}
-        emphasized={emphasized}
-        onPick={handleSelect}
-      />
-
       <KeyboardHints />
 
       {!hasInteracted && !focusedNode && (
@@ -593,8 +580,9 @@ export default function App() {
       )}
 
       {/* "You are here" — only when user has started exploring and isn't in
-          focus mode (focus chip already occupies that slot). */}
-      {hasInteracted && !focusedNode && nearestDomainId && (() => {
+          focus mode (focus chip already occupies that slot), and not while
+          the detail overlay is open (its breadcrumb header replaces this). */}
+      {hasInteracted && !focusedNode && !selectedId && nearestDomainId && (() => {
         const domain = domainById.get(nearestDomainId);
         if (!domain) return null;
         const cluster = getClusters().find((c) =>

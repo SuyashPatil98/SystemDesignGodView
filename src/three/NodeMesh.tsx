@@ -270,9 +270,12 @@ export default function NodeMesh({
     [nodes],
   );
   // Base (target) size per node kind. Pip size lerps toward this target
-  // whenever the node becomes visible; lerps to 0 when hidden.
+  // whenever the node becomes visible; lerps to 0 when hidden. Bumped from
+  // 5.5 / 3.5 / 2.5 → 7.5 / 5.0 / 3.6 so subdomain anchors read clearly
+  // through the thinned haze and concepts/leaves are picked out as bright
+  // points rather than blending into the cloud.
   const pipBaseSize = (kind: GNode['kind']) =>
-    kind === 'subdomain' ? 5.5 : kind === 'concept' ? 3.5 : 2.5;
+    kind === 'subdomain' ? 7.5 : kind === 'concept' ? 5.0 : 3.6;
 
   const pipGeometry = useMemo(() => {
     const positions = new Float32Array(pipNodes.length * 3);

@@ -160,7 +160,6 @@ interface State {
   expandedDomainIds: Set<string>;
   expandedSubdomainIds: Set<string>;
   hasInteracted: boolean; // first-load hint dismissal
-  showMinimap: boolean;
   showLegend: boolean;
   showHints: boolean;
 
@@ -220,7 +219,6 @@ interface State {
   expandAll: (domainIds: string[], subdomainIds: string[]) => void;
   collapseAll: () => void;
   markInteracted: () => void;
-  setShowMinimap: (b: boolean) => void;
   setShowLegend: (b: boolean) => void;
   setShowHints: (b: boolean) => void;
 
@@ -276,7 +274,6 @@ export const useGraphStore = create<State>((set) => ({
   expandedDomainIds: new Set(),
   expandedSubdomainIds: new Set(),
   hasInteracted: false,
-  showMinimap: true,
   showLegend: true,
   showHints: false,
 
@@ -371,7 +368,6 @@ export const useGraphStore = create<State>((set) => ({
       expandedSubdomainIds: new Set(),
     }),
   markInteracted: () => set({ hasInteracted: true }),
-  setShowMinimap: (b) => set({ showMinimap: b }),
   setShowLegend: (b) => set({ showLegend: b }),
   setShowHints: (b) => set({ showHints: b }),
 

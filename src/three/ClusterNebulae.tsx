@@ -149,9 +149,9 @@ export default function ClusterNebulae({ ambientOpacity = 1 }: ClusterNebulaePro
         <NebulaSprite
           key={n.id}
           position={n.position}
-          scale={170 + i * 10}
+          scale={150 + i * 8}
           seed={i * 1.7 + 0.31}
-          baseOpacity={0.18}
+          baseOpacity={0.07}
           ambientOpacity={ambientOpacity}
         />
       ))}

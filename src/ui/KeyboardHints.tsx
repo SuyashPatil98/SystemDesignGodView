@@ -13,7 +13,6 @@ const shortcuts: [string, string][] = [
   ['F', 'Re-focus selected'],
   ['C', 'Reset camera'],
   ['1-8', 'Switch mode'],
-  ['M', 'Toggle minimap'],
 ];
 
 const mouseRows: [string, string][] = [

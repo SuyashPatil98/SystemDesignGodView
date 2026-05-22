@@ -11,7 +11,7 @@ import { useGraphStore } from '../store/useGraphStore';
 // sphere, it wraps to the opposite side. Lightweight Points shader handles
 // look + soft fade.
 
-const COUNT = 700;
+const COUNT = 380;
 const SPHERE_RADIUS = 150;
 
 const VERTEX = /* glsl */ `
@@ -41,7 +41,7 @@ const FRAGMENT = /* glsl */ `
     vec2 c = 2.0 * gl_PointCoord - 1.0;
     float r = dot(c, c);
     if (r > 1.0) discard;
-    float a = smoothstep(1.0, 0.0, r) * 0.35 * vFade * uAmbient;
+    float a = smoothstep(1.0, 0.0, r) * 0.18 * vFade * uAmbient;
     gl_FragColor = vec4(uMint * (0.55 + vBright * 0.6), a);
   }
 `;
