@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Cloud, CloudOff, Loader2, RefreshCcw, X } from 'lucide-react';
 import {
   getCachedToken,
@@ -251,11 +251,32 @@ function SyncModal({
         </p>
 
         {!cached ? (
-          <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <form
+            onSubmit={onSubmit}
+            className="flex flex-col gap-3"
+            autoComplete="off"
+          >
+            {/* Plain text input with CSS-masked glyphs. type="password"
+                used to trigger Edge's 'Requirements & constraints' popup
+                and the 1Password / LastPass auto-suggest tooltips over
+                the field. Browsers reserve those for actual password
+                inputs, so by going type="text" with -webkit-text-security
+                masking + a wall of opt-out data-* attributes, the field
+                stays visually private without inviting any manager UI. */}
             <input
               ref={inputRef}
-              type="password"
+              type="text"
+              name="godview-owner-key"
+              id="godview-owner-key"
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              data-form-type="other"
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-bwignore="true"
+              data-ms-editor="false"
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
               placeholder="Owner passphrase"
@@ -266,7 +287,13 @@ function SyncModal({
                 color: '#fff',
                 border: `1px solid ${error ? '#fb7185' : ACCENT_DIM}`,
                 background: 'rgba(94,234,183,0.04)',
-              }}
+                // Mask the characters as dots without using type=password.
+                // Works in Chromium and Safari; Firefox falls back to
+                // plain text which is acceptable for a personal app.
+                WebkitTextSecurity: 'disc',
+                textSecurity: 'disc',
+                letterSpacing: '0.12em',
+              } as CSSProperties}
             />
             {error && (
               <div
