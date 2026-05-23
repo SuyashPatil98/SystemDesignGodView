@@ -61,13 +61,31 @@ interface RemotePayload {
   updatedAt: number;
 }
 
+// Read the response body on a non-OK status and turn it into a readable
+// message — without this the user just sees 'Sync GET 500' with no clue
+// whether the server hit KV trouble, a misconfigured env var, etc.
+async function explain(res: Response, verb: string): Promise<string> {
+  if (res.status === 401) return 'Wrong passphrase';
+  let detail = '';
+  try {
+    const body = await res.json();
+    if (body && typeof body === 'object') {
+      const err = (body as { error?: string }).error;
+      const sub = (body as { detail?: string }).detail;
+      if (err) detail = err;
+      if (sub) detail = detail ? `${detail}: ${sub}` : sub;
+    }
+  } catch {}
+  if (!detail) detail = res.statusText || 'Sync error';
+  return `${verb} ${res.status} — ${detail}`;
+}
+
 export async function fetchRemote(token: string): Promise<RemotePayload> {
   const res = await fetch('/api/sync', {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (res.status === 401) throw new Error('Wrong passphrase');
-  if (!res.ok) throw new Error(`Sync GET ${res.status}`);
+  if (!res.ok) throw new Error(await explain(res, 'GET'));
   return res.json();
 }
 
@@ -84,8 +102,7 @@ export async function pushRemote(
     },
     body: JSON.stringify({ notes, overrides }),
   });
-  if (res.status === 401) throw new Error('Wrong passphrase');
-  if (!res.ok) throw new Error(`Sync PUT ${res.status}`);
+  if (!res.ok) throw new Error(await explain(res, 'PUT'));
   return res.json();
 }
 

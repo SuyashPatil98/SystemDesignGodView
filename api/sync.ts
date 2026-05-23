@@ -90,6 +90,16 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Sanity-check KV credentials before touching the SDK — without this
+  // missing env vars surface as an opaque crash inside @vercel/kv.
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    return res.status(500).json({
+      error: 'KV not configured',
+      detail:
+        'KV_REST_API_URL or KV_REST_API_TOKEN is missing. Connect an Upstash Redis store to the project under Vercel → Storage and redeploy.',
+    });
+  }
+
   if (req.method === 'GET') {
     try {
       const data = await kv.get<StorePayload>(KEY);
